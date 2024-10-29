@@ -1,0 +1,30 @@
+/* Fixed height for narrative boxes and scroll styling */
+.narrative-box {
+    height: 250px; /* Adjust height as needed */
+    overflow-y: auto; /* Enables vertical scrolling */
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #f8f9fa;
+  }
+
+  .clause-box {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #e2e3e5;
+  }
+
+  .clause-item {
+    padding: 10px;
+    margin-bottom: 10px; /* Space between items */
+    border: 1px solid #ced4da; /* Border for each item */
+    border-radius: 5px; /* Rounded corners */
+    background-color: #f8f9fa; /* Background color */
+}
+
+.highlight {
+        background-color: yellow;  /* Or any color you want */
+    }
+

@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <!-- Our CSS -->
+    
+    <link href="{{url_for('static',filename='css/style.css')}}" rel="stylesheet">
+
+    <title>Annotation Page</title>
+  </head>
+  <body>
+    <div class="container">
+
+      <h1>Evaluation Phase</h1>
+      <br/>
+
+      <!-- Row container for narratives -->
+      <div class="row">
+        <!-- Narrative 1 box -->
+        <div class="col-md-6">
+          <div class="border p-3">
+            <h4>Narrative 1</h4>
+            <div class="narrative-box">
+              {% if show_overlap and overlap_highlighted %}
+                {{ overlap_highlighted[0] | safe }}
+              {% elif show_conflict and conflict_highlighted %}
+                {{ conflict_highlighted[0] | safe }}
+              {% elif show_unique1 or show_unique2 and unique_highlighted %}
+                {{ unique_highlighted[0] | safe }}
+              {% else %}
+                {{ file.n1[current_index] }}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Narrative 2 box -->
+        <div class="col-md-6">
+          <div class="border p-3">
+            <h4>Narrative 2</h4>
+            <div class="narrative-box">
+              {% if show_overlap and overlap_highlighted %}
+                {{ overlap_highlighted[1] | safe }}
+              {% elif show_conflict and conflict_highlighted %}
+                {{ conflict_highlighted[1] | safe }}
+              {% elif show_unique1 or show_unique2 and unique_highlighted %}
+                {{ unique_highlighted[1] | safe }}
+              {% else %}
+                {{ file.n2[current_index] }}
+              {% endif %}
+            </div>
+          </div>
+          <!-- <h5>Data# {{current_index}}</h5> -->
+        </div>
+      </div>
+
+      <!-- Next and Previous buttons below the text boxes -->
+      <div class="text-center mt-3">
+        <span>Index: {{current_index+1 }}</span>
+        <a href="{{ url_for('prev_narrative') }}" class="btn btn-secondary">Prev</a>
+        <a href="{{ url_for('next_narrative') }}" class="btn btn-secondary">Next</a>
+      </div>
+
+      <!-- Additional row of buttons -->
+      <div class="mt-3">
+        <h4>Extract Clauses</h4>
+        <div class="d-flex">
+          <a href="{{ url_for('overlap_action') }}" class="btn me-2" 
+                    style="background-color: #90EE90; color: black;">
+            {{ 'Hide Overlap' if show_overlap else 'Show Overlap' }}
+          </a>
+          <!-- <a href="{{ url_for('overlap_action') }}" class="btn btn-warning me-2">
+            {{ 'Hide Overlap' if show_overlap else 'Show Overlap' }}
+          </a> -->
+          <a href="{{ url_for('conflict_action') }}" class="btn btn-danger me-2">
+            {{ 'Hide Conflict' if show_conflict else 'Show Conflict' }}
+          </a>
+          <a href="{{ url_for('unique1_action') }}" class="btn btn-warning me-2" style="color: black;">
+             {{ 'Hide UNQ-1' if show_unique1 else 'Show UNQ-1' }}
+            </a>
+          <a href="{{ url_for('unique2_action') }}" class="btn btn-warning " style="color: black;">
+              {{ 'Hide UNQ-2' if show_unique2 else 'Show UNQ-2' }}
+          </a>
+        </div>
+        <br/>
+      </div>
+
+      
+      <!-- Display Overlap Data -->
+  {% if show_overlap %}       
+    {% if overlap %}
+    <div class="clause-box">
+      <h4>Overlapping Clauses</h4>
+      {% for item in overlap %}
+        <div class="clause-item">
+          <p>
+            <span style="font-weight: bold;">Sentence 1:</span> {{ item['sentence_1'] }}<br>
+            <span style="font-weight: bold;">Sentence 2:</span> {{ item['sentence_2'] }}
+          </p>
+          <!-- Clause item number and buttons aligned at the bottom right of overlap-item -->
+          <div class="d-flex justify-content-between align-items-center mt-2">
+            <!-- Clause item number button -->
+            <span class="badge bg-info text-dark me-auto">Clause {{ loop.index }}</span> <!-- Display clause number -->
+            
+            <!-- Action buttons on the right -->
+            <div class="d-flex justify-content-end">
+              <button class="btn btn-primary btn-sm me-1">Agree</button>
+              <button class="btn btn-danger btn-sm me-1">Disagree</button>
+              <button class="btn btn-secondary btn-sm ">Neutral</button>
+              
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+    {% else %}
+        <div class="clause-item">
+          <p>No overlap clauses available.</p>
+      </div>
+      {% endif %}
+  {% endif %}
+
+      <!-- Display conflict Data -->
+    {% if show_conflict %}   
+      {% if conflict %}
+      <div class="clause-box">
+        <h4>Conflicting Clauses</h4>
+        {% for item in conflict %}
+          <div class="clause-item">
+            <p>
+              <span style="font-weight: bold;">Sentence 1:</span> {{ item['sentence_1'] }}<br>
+              <span style="font-weight: bold;">Sentence 2:</span> {{ item['sentence_2'] }}
+            </p>
+            <!-- Clause item number and buttons aligned at the bottom right of overlap-item -->
+            <div class="d-flex justify-content-between align-items-center mt-2">
+              <!-- Clause item number button -->
+              <span class="badge bg-info text-dark me-auto">Clause {{ loop.index }}</span> <!-- Display clause number -->
+              
+              <!-- Action buttons on the right -->
+              <div class="d-flex justify-content-end">
+                <button class="btn btn-primary btn-sm me-1">Agree</button>
+                <button class="btn btn-danger btn-sm me-1">Disagree</button>
+                <button class="btn btn-secondary btn-sm ">Neutral</button>
+                
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      {% else %}
+        <div class="clause-item">
+            <p>No Conflict clauses available.</p>
+      </div>
+      {% endif %}
+
+    {% endif %}
+
+
+<!-- Display Unique1 Data -->
+{% if show_unique1 %}       
+  {% if unique1 %}
+  <div class="clause-box">
+    <h4>Unique Sentences from Narrative 1</h4>
+    {% for item in unique1 %}
+      <div class="clause-item">
+        <p>
+          <span style="font-weight: bold;">Sentence:</span> {{ item['sentence_1'] }}<br>
+        </p>
+        <!-- Clause item number and buttons aligned at the bottom right of overlap-item -->
+        <div class="d-flex justify-content-between align-items-center mt-2">
+          <!-- Clause item number button -->
+          <span class="badge bg-info text-dark me-auto">Clause {{ loop.index }}</span> <!-- Display clause number -->
+          
+          <!-- Action buttons on the right -->
+          <div class="d-flex justify-content-end">
+            <button class="btn btn-primary btn-sm me-1">Agree</button>
+            <button class="btn btn-danger btn-sm me-1">Disagree</button>
+            <button class="btn btn-secondary btn-sm ">Neutral</button>
+            
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% else %}
+      <div class="clause-item">
+        <p>No Unique sentences available.</p>
+    </div>
+    {% endif %}
+{% endif %}
+
+<!-- Display Unique1 Data -->
+{% if show_unique2 %}       
+  {% if unique2 %}
+  <div class="clause-box">
+    <h4>Unique Sentences from Narrative 2</h4>
+    {% for item in unique2 %}
+      <div class="clause-item">
+        <p>
+          <span style="font-weight: bold;">Sentence:</span> {{ item['sentence_2'] }}<br>
+        </p>
+        <!-- Clause item number and buttons aligned at the bottom right of overlap-item -->
+        <div class="d-flex justify-content-between align-items-center mt-2">
+          <!-- Clause item number button -->
+          <span class="badge bg-info text-dark me-auto">Clause {{ loop.index }}</span> <!-- Display clause number -->
+          
+          <!-- Action buttons on the right -->
+          <div class="d-flex justify-content-end">
+            <button class="btn btn-primary btn-sm me-1">Agree</button>
+            <button class="btn btn-danger btn-sm me-1">Disagree</button>
+            <button class="btn btn-secondary btn-sm ">Neutral</button>
+            
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% else %}
+      <div class="clause-item">
+        <p>No Unique sentences available.</p>
+    </div>
+    {% endif %}
+{% endif %}
+
+    <!-- Optional JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+
+  </body>
+</html>
