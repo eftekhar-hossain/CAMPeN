@@ -6,7 +6,7 @@ A Flask Web app
 - `templates` contains the `.html` files.
 
 ## How to Run
-Installed `Python=3.10.x`.
+Installed `Python=3.10.x` and then `clone` the repository.
 
 - Create a virtual environment.
 
