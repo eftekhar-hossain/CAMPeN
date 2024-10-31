@@ -24,7 +24,13 @@
     background-color: #f8f9fa; /* Background color */
 }
 
-.highlight {
-        background-color: yellow;  /* Or any color you want */
+.highlight-overlap {
+        background-color:  #90EE90;  /* Or any color you want */
     }
 
+    /* Active button styling */
+.btn.active {
+  background-color: green;
+  color: white;
+  border-color: #007bff;
+}
