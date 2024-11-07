@@ -48,21 +48,59 @@ function highlightClause(sentence1, sentence2, buttonId, clauseNumber) {
     const isHighlighted1 = normalizedNarrative1.includes(normalizedHighlightedSentence1);
     const isHighlighted2 = normalizedNarrative2.includes(normalizedHighlightedSentence2);
 
-    if (isHighlighted1 && isHighlighted2) {
-        // Remove highlights and tokens by replacing the highlighted structure with the original sentence
-        narrative1.innerHTML = narrative1.innerHTML.replace(new RegExp(escapedHighlightedSentence1, 'g'), sentence1);
-        narrative2.innerHTML = narrative2.innerHTML.replace(new RegExp(escapedHighlightedSentence2, 'g'), sentence2);
-        button.classList.remove('active');  // Deactivate button
-        button.innerText = 'Highlight';     // Reset button text
+    // Check if sentences exist in narratives
+    const sentenceExistsNarrative1 = normalizedNarrative1.includes(normalizedSentence1);
+    const sentenceExistsNarrative2 = normalizedNarrative2.includes(normalizedSentence2);
+
+    // Check if neither sentence exists: show error message
+    if (!sentenceExistsNarrative1 && !sentenceExistsNarrative2) {
+        alert("Exact match not found in both documents; you must check the documents.");
+        return;
+    }
+
+    if (isHighlighted1 || isHighlighted2) {
+        // Remove the highlighted and tokens by replacing them with original
+        if (isHighlighted1) {
+            narrative1.innerHTML = narrative1.innerHTML.replace(new RegExp(escapedHighlightedSentence1, 'g'), sentence1);
+        }
+        if (isHighlighted2) {
+            narrative2.innerHTML = narrative2.innerHTML.replace(new RegExp(escapedHighlightedSentence2, 'g'), sentence2);
+        }
+
+        // Deactivate button if both are removed:
+        if (!isHighlighted1 && !isHighlighted2) {
+            button.classList.remove('active');
+            button.innerText = 'Highlight';
+
+        }
     } 
     else {
-        // Add highlights with Start and End tokens
-        narrative1.innerHTML = narrative1.innerHTML.replace(new RegExp(escapedSentence1, 'g'), highlightedSentence1);
-        narrative2.innerHTML = narrative2.innerHTML.replace(new RegExp(escapedSentence2, 'g'), highlightedSentence2);
-        button.classList.add('active');     // Activate button
-        button.innerText = 'Hide';          // Change button text
-        // Scroll to the top smoothly
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Add highlight with start end tokens
+        let highlighted = false;
+        if (sentenceExistsNarrative1) {
+            narrative1.innerHTML = narrative1.innerHTML.replace(new RegExp(escapedSentence1, 'g'), highlightedSentence1);
+            highlighted = true;
+
+        }
+        else {
+            alert("Exact match not found in both documents; you must check the documents.");
+        }
+
+        if (sentenceExistsNarrative2) {
+            narrative2.innerHTML = narrative2.innerHTML.replace(new RegExp(escapedSentence2, 'g'), highlightedSentence2);
+            highlighted = true;
+        }
+        else {
+            alert("Exact match not found in both documents; you must check the documents.");
+
+        }
+
+        if (highlighted) {
+            button.classList.add(active);
+            button.innerText = 'Hide';
+
+            window.scrollTo({top: 0, behavior: 'smooth'});
+        }
     }
 }
 
