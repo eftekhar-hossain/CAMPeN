@@ -52,7 +52,7 @@ function highlightClause(sentence1, sentence2, buttonId, clauseNumber) {
     const sentenceExistsNarrative1 = normalizedNarrative1.includes(normalizedSentence1);
     const sentenceExistsNarrative2 = normalizedNarrative2.includes(normalizedSentence2);
 
-    // Check if neither sentence exists: show error message
+    // Check if either sentence exists: show error message
     if (!sentenceExistsNarrative1 && !sentenceExistsNarrative2) {
         alert("Exact match not found in both documents; you must check the documents.");
         return;
@@ -67,12 +67,21 @@ function highlightClause(sentence1, sentence2, buttonId, clauseNumber) {
             narrative2.innerHTML = narrative2.innerHTML.replace(new RegExp(escapedHighlightedSentence2, 'g'), sentence2);
         }
 
-        // Deactivate button if both are removed:
-        if (!isHighlighted1 && !isHighlighted2) {
+
+        // Check if highlights are still present and update narratives
+        const updatedDecodedNarrative1 = decodeHTMLEntities(narrative1.innerHTML);
+        const updatedDecodedNarrative2 = decodeHTMLEntities(narrative2.innerHTML);
+        const updatedNormalizedNarrative1 = normalizeWhitespace(updatedDecodedNarrative1);
+        const updatedNormalizedNarrative2 = normalizeWhitespace(updatedDecodedNarrative2);
+
+        const stillHighlighted1 = updatedNormalizedNarrative1.includes(normalizedHighlightedSentence1);
+        const stillHighlighted2 = updatedNormalizedNarrative2.includes(normalizedHighlightedSentence2);
+
+        if (!stillHighlighted1 && !stillHighlighted2) {
             button.classList.remove('active');
             button.innerText = 'Highlight';
-
         }
+        
     } 
     else {
         // Add highlight with start end tokens
@@ -83,7 +92,7 @@ function highlightClause(sentence1, sentence2, buttonId, clauseNumber) {
 
         }
         else {
-            alert("Exact match not found in both documents; you must check the documents.");
+            alert("Exact match not found in Document 1; you must check the document.");
         }
 
         if (sentenceExistsNarrative2) {
@@ -91,12 +100,12 @@ function highlightClause(sentence1, sentence2, buttonId, clauseNumber) {
             highlighted = true;
         }
         else {
-            alert("Exact match not found in both documents; you must check the documents.");
+            alert("Exact match not found in Document 2; you must check the document.");
 
         }
 
         if (highlighted) {
-            button.classList.add(active);
+            button.classList.add('active');
             button.innerText = 'Hide';
 
             window.scrollTo({top: 0, behavior: 'smooth'});
@@ -128,11 +137,28 @@ function highlightUnique1(sentence1, buttonId, clauseNumber) {
     // Check if the sentence is currently highlighted
     const isHighlighted1 = normalizedNarrative1.includes(normalizedHighlightedSentence1);
 
+    const sentenceExistsNarrative1 = normalizedNarrative1.includes(normalizedSentence1);
+
+    if (!sentenceExistsNarrative1) {
+        alert("Exact match not found in Document 1; you must check the document.");
+
+        return;
+    }
+
+
     if (isHighlighted1) {
-        // Remove highlights and tokens by replacing the highlighted structure with the original sentence
+        // Remove highlight
         narrative1.innerHTML = narrative1.innerHTML.replace(new RegExp(escapedHighlightedSentence1, 'g'), sentence1);
-        button.classList.remove('active');  // Deactivate button
-        button.innerText = 'Highlight';     // Reset button text
+
+        // Update narrative + check if the highlight is still present
+        const updatedDecodedNarrative1 = decodeHTMLEntities(narrative1.innerHTML);
+        const updatedNormalizedNarrative1 = normalizeWhitespace(updatedDecodedNarrative1);
+        const stillHighlighted1 = updatedNormalizedNarrative1.includes(normalizedHighlightedSentence1);
+
+        if (!stillHighlighted1) {
+            button.classList.remove('active');
+            button.innerText = 'Highlight';
+        }
     } 
     else {
         // Add highlights with Start and End tokens
@@ -167,6 +193,15 @@ function highlightUnique2(sentence2, buttonId, clauseNumber) {
 
     // Check if the sentence is currently highlighted
     const isHighlighted2 = normalizedNarrative2.includes(normalizedHighlightedSentence2);
+
+    // Check if the sentence exists in narrative:
+    const sentenceExistsNarrative2 = normalizedNarrative2.includes(normalizedSentence2);
+
+    if (!sentenceExistsNarrative2) {
+        alert("Exact match not found in Document 2; you must check the document.");
+
+        return;
+    }
 
     if (isHighlighted2) {
         // Remove highlights and tokens by replacing the highlighted structure with the original sentence
