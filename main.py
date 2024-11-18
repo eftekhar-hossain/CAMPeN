@@ -53,17 +53,13 @@ unique2 = data['is_unique_n2'].tolist()
 # Initialize the current index
 current_index = 0
 
-#below shows current directory of users
-#@app.route('/db_contents')
-#def show_db_contents():
-#    users = User.query.all()
-#    return "<br>".join([f"ID: {user.id}, Username: {user.username}" for user in users])
 
 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(20), nullable=False, unique=True)
     password = db.Column(db.String(80), nullable=False)
+    isAdmin = db.Column(db.Boolean, default=False) # Admin privilege
 
 class registerForm(FlaskForm):
     username = StringField(validators=[InputRequired(), Length(
@@ -128,6 +124,16 @@ def register():
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
+# below shows current directory of users
+@app.route('/admin')
+@login_required #add admin privelge to this
+def show_db_contents():
+    if not current_user.isAdmin: # Check if user has admin privilege
+        return "Access denied", 403
+    
+    users = User.query.all()
+    return "<br>".join([f"ID: {user.id}, Username: {user.username}" for user in users])
 
 
 @app.route('/index')
