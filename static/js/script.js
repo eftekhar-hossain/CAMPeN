@@ -1,14 +1,14 @@
-// escape special regex characters
+// Escape special regex characters
 function escapeSpecialChar(string) {
     return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// normalize whitespace
+// Normalize whitespace
 function normalizeWhitespace(string) {
     return string.replace(/\s+/g, ' ').trim();
 }
 
-// decode HTML entities
+// Decode HTML entities
 function decodeHTMLEntities(text) {
     var txt = document.createElement("textarea");
     txt.innerHTML = text;
@@ -20,17 +20,15 @@ function highlightClause(sentence1, sentence2, buttonId, clauseNumber) {
     const narrative2 = document.getElementById('narrative2');
     const button = document.getElementById(buttonId);
 
-    // Define Start and End tokens
+    // Define Start and End tokens with unique clauseNumber
     const startToken = `<span class="badge bg-info text-dark">[Start:${clauseNumber}]</span> `;
     const endToken = ` <span class="badge bg-info text-dark">[End:${clauseNumber}]</span>`;
-    const highlightedSentence1 = `${startToken}<span class="highlight-overlap">${sentence1}</span>${endToken}`;
-    const highlightedSentence2 = `${startToken}<span class="highlight-overlap">${sentence2}</span>${endToken}`;
 
     // Escape special characters
     const escapedSentence1 = escapeSpecialChar(sentence1); 
     const escapedSentence2 = escapeSpecialChar(sentence2);
-    const escapedHighlightedSentence1 = escapeSpecialChar(highlightedSentence1);
-    const escapedHighlightedSentence2 = escapeSpecialChar(highlightedSentence2);
+    const escapedStartToken = escapeSpecialChar(startToken);
+    const escapedEndToken = escapeSpecialChar(endToken);
 
     // Decode and normalize narratives
     const decodedNarrative1 = decodeHTMLEntities(narrative1.innerHTML);
@@ -41,74 +39,114 @@ function highlightClause(sentence1, sentence2, buttonId, clauseNumber) {
     // Normalize sentences
     const normalizedSentence1 = normalizeWhitespace(sentence1);
     const normalizedSentence2 = normalizeWhitespace(sentence2);
-    const normalizedHighlightedSentence1 = normalizeWhitespace(highlightedSentence1);
-    const normalizedHighlightedSentence2 = normalizeWhitespace(highlightedSentence2);
 
-    // Check if the sentences are currently highlighted
-    const isHighlighted1 = normalizedNarrative1.includes(normalizedHighlightedSentence1);
-    const isHighlighted2 = normalizedNarrative2.includes(normalizedHighlightedSentence2);
+    // Convert to lower case for case-insensitive comparison
+    const lowerNarrative1 = normalizedNarrative1.toLowerCase();
+    const lowerNarrative2 = normalizedNarrative2.toLowerCase();
+    const lowerSentence1 = normalizedSentence1.toLowerCase();
+    const lowerSentence2 = normalizedSentence2.toLowerCase();
 
-    // Check if sentences exist in narratives
-    const sentenceExistsNarrative1 = normalizedNarrative1.includes(normalizedSentence1);
-    const sentenceExistsNarrative2 = normalizedNarrative2.includes(normalizedSentence2);
+    // Define normalized startToken for searching
+    const normalizedStartToken = normalizeWhitespace(startToken).toLowerCase();
 
-    // Check if either sentence exists: show error message
-    if (!sentenceExistsNarrative1 && !sentenceExistsNarrative2) {
-        alert("Exact match not found in both documents; you must check the documents.");
-        return;
-    }
+    // Check if the specific clause is currently highlighted in narratives
+    const isHighlighted1 = lowerNarrative1.includes(normalizedStartToken);
+    const isHighlighted2 = lowerNarrative2.includes(normalizedStartToken);
+
+    // Initialize flags to track highlighting success
+    let highlightFailed1 = false;
+    let highlightFailed2 = false;
 
     if (isHighlighted1 || isHighlighted2) {
-        // Remove the highlighted and tokens by replacing them with original
+        // Remove the specific clause's highlight and tokens by replacing them with original
         if (isHighlighted1) {
-            narrative1.innerHTML = narrative1.innerHTML.replace(new RegExp(escapedHighlightedSentence1, 'g'), sentence1);
+            // Construct regex to match the exact highlighted clause in narrative1
+            const regex1 = new RegExp(
+                escapedStartToken + 
+                '<span class="highlight-overlap">' + 
+                escapedSentence1 + 
+                '</span>' + 
+                escapedEndToken, 
+                'gi'
+            );
+            narrative1.innerHTML = narrative1.innerHTML.replace(regex1, sentence1);
         }
         if (isHighlighted2) {
-            narrative2.innerHTML = narrative2.innerHTML.replace(new RegExp(escapedHighlightedSentence2, 'g'), sentence2);
+            // Construct regex to match the exact highlighted clause in narrative2
+            const regex2 = new RegExp(
+                escapedStartToken + 
+                '<span class="highlight-overlap">' + 
+                escapedSentence2 + 
+                '</span>' + 
+                escapedEndToken, 
+                'gi'
+            );
+            narrative2.innerHTML = narrative2.innerHTML.replace(regex2, sentence2);
         }
 
-
-        // Check if highlights are still present and update narratives
-        const updatedDecodedNarrative1 = decodeHTMLEntities(narrative1.innerHTML);
-        const updatedDecodedNarrative2 = decodeHTMLEntities(narrative2.innerHTML);
-        const updatedNormalizedNarrative1 = normalizeWhitespace(updatedDecodedNarrative1);
-        const updatedNormalizedNarrative2 = normalizeWhitespace(updatedDecodedNarrative2);
-
-        const stillHighlighted1 = updatedNormalizedNarrative1.includes(normalizedHighlightedSentence1);
-        const stillHighlighted2 = updatedNormalizedNarrative2.includes(normalizedHighlightedSentence2);
-
-        if (!stillHighlighted1 && !stillHighlighted2) {
-            button.classList.remove('active');
-            button.innerText = 'Highlight';
-        }
-        
+        // Update button state
+        button.classList.remove('active');
+        button.innerText = 'Highlight';
     } 
     else {
-        // Add highlight with start end tokens
+        // Add highlight with start and end tokens
         let highlighted = false;
-        if (sentenceExistsNarrative1) {
-            narrative1.innerHTML = narrative1.innerHTML.replace(new RegExp(escapedSentence1, 'g'), highlightedSentence1);
+
+        // Attempt to highlight in Narrative 1
+        if (lowerNarrative1.includes(lowerSentence1)) {
+            narrative1.innerHTML = narrative1.innerHTML.replace(new RegExp(escapedSentence1, 'gi'), function(matched) {
+                return `${startToken}<span class="highlight-overlap">${matched}</span>${endToken}`;
+            });
             highlighted = true;
 
-        }
-        else {
-            alert("Exact match not found in Document 1; you must check the document.");
+            // Verify if highlighting was successful for Narrative 1
+            const updatedNarrative1 = decodeHTMLEntities(narrative1.innerHTML);
+            const normalizedUpdatedNarrative1 = normalizeWhitespace(updatedNarrative1).toLowerCase();
+            const clausePattern1 = normalizeWhitespace(startToken).toLowerCase();
+            if (!normalizedUpdatedNarrative1.includes(clausePattern1)) {
+                highlightFailed1 = true;
+            }
+        } else {
+            highlightFailed1 = true;
         }
 
-        if (sentenceExistsNarrative2) {
-            narrative2.innerHTML = narrative2.innerHTML.replace(new RegExp(escapedSentence2, 'g'), highlightedSentence2);
+        // Attempt to highlight in Narrative 2
+        if (lowerNarrative2.includes(lowerSentence2)) {
+            narrative2.innerHTML = narrative2.innerHTML.replace(new RegExp(escapedSentence2, 'gi'), function(matched) {
+                return `${startToken}<span class="highlight-overlap">${matched}</span>${endToken}`;
+            });
             highlighted = true;
-        }
-        else {
-            alert("Exact match not found in Document 2; you must check the document.");
 
+            // Verify if highlighting was successful for Narrative 2
+            const updatedNarrative2 = decodeHTMLEntities(narrative2.innerHTML);
+            const normalizedUpdatedNarrative2 = normalizeWhitespace(updatedNarrative2).toLowerCase();
+            const clausePattern2 = normalizeWhitespace(startToken).toLowerCase();
+            if (!normalizedUpdatedNarrative2.includes(clausePattern2)) {
+                highlightFailed2 = true;
+            }
+        } else {
+            highlightFailed2 = true;
         }
 
+        // Update button state and handle error messages
         if (highlighted) {
             button.classList.add('active');
             button.innerText = 'Hide';
-
             window.scrollTo({top: 0, behavior: 'smooth'});
+        }
+
+        // Prepare error messages based on which highlights failed
+        let errorMessage = "";
+        if (highlightFailed1 && highlightFailed2) {
+            errorMessage = "Exact match not found in both Document 1 and Document 2; you must check the documents.";
+        } else if (highlightFailed1) {
+            errorMessage = "Exact match not found in Document 1; you must check the document.";
+        } else if (highlightFailed2) {
+            errorMessage = "Exact match not found in Document 2; you must check the document.";
+        }
+
+        if (errorMessage) {
+            alert(errorMessage);
         }
     }
 }
@@ -117,56 +155,79 @@ function highlightUnique1(sentence1, buttonId, clauseNumber) {
     const narrative1 = document.getElementById('narrative1');
     const button = document.getElementById(buttonId);
 
-    // Define Start and End tokens
+    // Define Start and End tokens with unique clauseNumber
     const startToken = `<span class="badge bg-info text-dark">[Start:${clauseNumber}]</span> `;
     const endToken = ` <span class="badge bg-info text-dark">[End:${clauseNumber}]</span>`;
-    const highlightedSentence1 = `${startToken}<span class="highlight-overlap">${sentence1}</span>${endToken}`;
 
     // Escape special characters 
-    const escapedSentence1 = escapeSpecialChar(sentence1);
-    const escapedHighlightedSentence1 = escapeSpecialChar(highlightedSentence1);
+    const escapedSentence1 = escapeSpecialChar(sentence1); 
+    const escapedStartToken = escapeSpecialChar(startToken);
+    const escapedEndToken = escapeSpecialChar(endToken);
 
     // Decode and normalize narrative
     const decodedNarrative1 = decodeHTMLEntities(narrative1.innerHTML);
     const normalizedNarrative1 = normalizeWhitespace(decodedNarrative1);
 
-    // Normalize sentences
+    // Normalize sentence
     const normalizedSentence1 = normalizeWhitespace(sentence1);
-    const normalizedHighlightedSentence1 = normalizeWhitespace(highlightedSentence1);
 
-    // Check if the sentence is currently highlighted
-    const isHighlighted1 = normalizedNarrative1.includes(normalizedHighlightedSentence1);
+    // Convert to lower case for case-insensitive comparison
+    const lowerNarrative1 = normalizedNarrative1.toLowerCase();
+    const lowerSentence1 = normalizedSentence1.toLowerCase();
 
-    const sentenceExistsNarrative1 = normalizedNarrative1.includes(normalizedSentence1);
+    // Define normalized startToken for searching
+    const normalizedStartToken = normalizeWhitespace(startToken).toLowerCase();
 
-    if (!sentenceExistsNarrative1) {
-        alert("Exact match not found in Document 1; you must check the document.");
+    // Check if the specific clause is currently highlighted
+    const isHighlighted1 = lowerNarrative1.includes(normalizedStartToken);
 
-        return;
-    }
-
+    // Initialize flag to track highlighting success
+    let highlightFailed1 = false;
 
     if (isHighlighted1) {
-        // Remove highlight
-        narrative1.innerHTML = narrative1.innerHTML.replace(new RegExp(escapedHighlightedSentence1, 'g'), sentence1);
+        // Remove the specific clause's highlight and tokens by replacing them with original
+        // Construct regex to match the exact highlighted clause in narrative1
+        const regex1 = new RegExp(
+            escapedStartToken + 
+            '<span class="highlight-overlap">' + 
+            escapedSentence1 + 
+            '</span>' + 
+            escapedEndToken, 
+            'gi'
+        );
+        narrative1.innerHTML = narrative1.innerHTML.replace(regex1, sentence1);
 
-        // Update narrative + check if the highlight is still present
-        const updatedDecodedNarrative1 = decodeHTMLEntities(narrative1.innerHTML);
-        const updatedNormalizedNarrative1 = normalizeWhitespace(updatedDecodedNarrative1);
-        const stillHighlighted1 = updatedNormalizedNarrative1.includes(normalizedHighlightedSentence1);
-
-        if (!stillHighlighted1) {
-            button.classList.remove('active');
-            button.innerText = 'Highlight';
-        }
+        // Update button state
+        button.classList.remove('active');
+        button.innerText = 'Highlight';
     } 
     else {
-        // Add highlights with Start and End tokens
-        narrative1.innerHTML = narrative1.innerHTML.replace(new RegExp(escapedSentence1, 'g'), highlightedSentence1);
-        button.classList.add('active');     // Activate button
-        button.innerText = 'Hide';          // Change button text
-        // Scroll to the top smoothly
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Add highlight with start and end tokens
+        if (lowerNarrative1.includes(lowerSentence1)) {
+            narrative1.innerHTML = narrative1.innerHTML.replace(new RegExp(escapedSentence1, 'gi'), function(matched) {
+                return `${startToken}<span class="highlight-overlap">${matched}</span>${endToken}`;
+            });
+
+            // Verify if highlighting was successful
+            const updatedNarrative1 = decodeHTMLEntities(narrative1.innerHTML);
+            const normalizedUpdatedNarrative1 = normalizeWhitespace(updatedNarrative1).toLowerCase();
+            const clausePattern1 = normalizeWhitespace(startToken).toLowerCase();
+            if (!normalizedUpdatedNarrative1.includes(clausePattern1)) {
+                highlightFailed1 = true;
+            } else {
+                // Update button state
+                button.classList.add('active');
+                button.innerText = 'Hide';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        } else {
+            highlightFailed1 = true;
+        }
+
+        // Handle error message
+        if (highlightFailed1) {
+            alert("Exact match not found in Document 1; you must check the document.");
+        }
     }
 }
 
@@ -174,48 +235,79 @@ function highlightUnique2(sentence2, buttonId, clauseNumber) {
     const narrative2 = document.getElementById('narrative2');
     const button = document.getElementById(buttonId);
 
-    // Define Start and End tokens
+    // Define Start and End tokens with unique clauseNumber
     const startToken = `<span class="badge bg-info text-dark">[Start:${clauseNumber}]</span> `;
     const endToken = ` <span class="badge bg-info text-dark">[End:${clauseNumber}]</span>`;
-    const highlightedSentence2 = `${startToken}<span class="highlight-overlap">${sentence2}</span>${endToken}`;
 
     // Escape special characters
-    const escapedSentence2 = escapeSpecialChar(sentence2);
-    const escapedHighlightedSentence2 = escapeSpecialChar(highlightedSentence2);
-    
+    const escapedSentence2 = escapeSpecialChar(sentence2); 
+    const escapedStartToken = escapeSpecialChar(startToken);
+    const escapedEndToken = escapeSpecialChar(endToken);
+
     // Decode and normalize narrative
     const decodedNarrative2 = decodeHTMLEntities(narrative2.innerHTML);
     const normalizedNarrative2 = normalizeWhitespace(decodedNarrative2);
 
-    // Normalize sentences
+    // Normalize sentence
     const normalizedSentence2 = normalizeWhitespace(sentence2);
-    const normalizedHighlightedSentence2 = normalizeWhitespace(highlightedSentence2);
 
-    // Check if the sentence is currently highlighted
-    const isHighlighted2 = normalizedNarrative2.includes(normalizedHighlightedSentence2);
+    // Convert to lower case for case-insensitive comparison
+    const lowerNarrative2 = normalizedNarrative2.toLowerCase();
+    const lowerSentence2 = normalizedSentence2.toLowerCase();
 
-    // Check if the sentence exists in narrative:
-    const sentenceExistsNarrative2 = normalizedNarrative2.includes(normalizedSentence2);
+    // Define normalized startToken for searching
+    const normalizedStartToken = normalizeWhitespace(startToken).toLowerCase();
 
-    if (!sentenceExistsNarrative2) {
-        alert("Exact match not found in Document 2; you must check the document.");
+    // Check if the specific clause is currently highlighted
+    const isHighlighted2 = lowerNarrative2.includes(normalizedStartToken);
 
-        return;
-    }
+    // Initialize flag to track highlighting success
+    let highlightFailed2 = false;
 
     if (isHighlighted2) {
-        // Remove highlights and tokens by replacing the highlighted structure with the original sentence
-        narrative2.innerHTML = narrative2.innerHTML.replace(new RegExp(escapedHighlightedSentence2, 'g'), sentence2);
-        button.classList.remove('active');  // Deactivate button
-        button.innerText = 'Highlight';     // Reset button text
+        // Remove the specific clause's highlight and tokens by replacing them with original
+        // Construct regex to match the exact highlighted clause in narrative2
+        const regex2 = new RegExp(
+            escapedStartToken + 
+            '<span class="highlight-overlap">' + 
+            escapedSentence2 + 
+            '</span>' + 
+            escapedEndToken, 
+            'gi'
+        );
+        narrative2.innerHTML = narrative2.innerHTML.replace(regex2, sentence2);
+
+        // Update button state
+        button.classList.remove('active');
+        button.innerText = 'Highlight';
     } 
     else {
-        // Add highlights with Start and End tokens
-        narrative2.innerHTML = narrative2.innerHTML.replace(new RegExp(escapedSentence2, 'g'), highlightedSentence2);
-        button.classList.add('active');     // Activate button
-        button.innerText = 'Hide';          // Change button text
-        // Scroll to the top smoothly
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Add highlight with start and end tokens
+        if (lowerNarrative2.includes(lowerSentence2)) {
+            narrative2.innerHTML = narrative2.innerHTML.replace(new RegExp(escapedSentence2, 'gi'), function(matched) {
+                return `${startToken}<span class="highlight-overlap">${matched}</span>${endToken}`;
+            });
+
+            // Verify if highlighting was successful
+            const updatedNarrative2 = decodeHTMLEntities(narrative2.innerHTML);
+            const normalizedUpdatedNarrative2 = normalizeWhitespace(updatedNarrative2).toLowerCase();
+            const clausePattern2 = normalizeWhitespace(startToken).toLowerCase();
+            if (!normalizedUpdatedNarrative2.includes(clausePattern2)) {
+                highlightFailed2 = true;
+            } else {
+                // Update button state
+                button.classList.add('active');
+                button.innerText = 'Hide';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        } else {
+            highlightFailed2 = true;
+        }
+
+        // Handle error message
+        if (highlightFailed2) {
+            alert("Exact match not found in Document 2; you must check the document.");
+        }
     }
 }
 
