@@ -2,9 +2,31 @@ from flask import Flask, render_template, request, redirect, url_for, session
 import pandas as pd
 import ast,re
 from get_highlighted import get_overlap_narratives, get_conflict_narratives, get_unique_narratives
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin, login_user, LoginManager, login_required, logout_user, current_user
+from extensions import db, bcrypt
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, SubmitField
+from wtforms.validators import InputRequired, Length, ValidationError
+
+
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Replace with a secure key for sessions
+# link app to database.db
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+app.config['SECRET_KEY'] = 'testingKey' # Replace with a secure key for production
+db.init_app(app)
+bcrypt.init_app(app)
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
 # Sample data
 # a_list = ["How Are You", "I am fine"]
 # b_list = ["What is your name", "My name is"]
@@ -31,9 +53,85 @@ unique2 = data['is_unique_n2'].tolist()
 # Initialize the current index
 current_index = 0
 
+#below shows current directory of users
+#@app.route('/db_contents')
+#def show_db_contents():
+#    users = User.query.all()
+#    return "<br>".join([f"ID: {user.id}, Username: {user.username}" for user in users])
 
 
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(20), nullable=False, unique=True)
+    password = db.Column(db.String(80), nullable=False)
+
+class registerForm(FlaskForm):
+    username = StringField(validators=[InputRequired(), Length(
+        min=4, max=20)], render_kw={"placeholder": "Username"})
+    
+    password = PasswordField(validators=[InputRequired(), Length(
+        min=4, max=20)], render_kw={"placeholder": "Password"})
+    
+    submit = SubmitField("Register")
+
+    def validate_username(self, username):
+        existingUserUsername = User.query.filter_by(
+            username=username.data).first()
+        
+        if existingUserUsername:
+            raise ValidationError("That username already exists, Please choose a different one.")
+        
+class LoginForm(FlaskForm):
+    username = StringField(validators=[InputRequired(), Length(
+        min=4, max=20)], render_kw={"placeholder": "Username"})
+    
+    password = PasswordField(validators=[InputRequired(), Length(
+        min=4, max=20)], render_kw={"placeholder": "Password"})
+    
+    submit = SubmitField("Login")
+
+    
+
+# Login System
 @app.route('/')
+def home():
+    return render_template('home.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user:
+            if bcrypt.check_password_hash(user.password, form.password.data):
+                login_user(user)
+                return redirect(url_for('index'))
+
+    return render_template('login.html', form=form)
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    form = registerForm()
+    
+    if form.validate_on_submit():
+        hashedPassword = bcrypt.generate_password_hash(form.password.data)
+        newUser = User(username=form.username.data, password=hashedPassword)
+        db.session.add(newUser)
+        db.session.commit()
+        return redirect(url_for('login'))
+
+    return render_template('register.html', form=form)
+
+@app.route('/logout', methods=['GET', 'POST'])
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+
+@app.route('/index')
+@login_required
 def index():
     global current_index
     # Retrieve the `show_overlap` toggle state from the session
