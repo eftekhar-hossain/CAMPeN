@@ -2,15 +2,76 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>User List</title>
-    <link rel="stylesheet" href="./style.css">
-    <link rel="icon" href="./favicon.ico" type="image/x-icon">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Admin Dashboard</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
   </head>
   <body>
-    <h1>User List</h1>  
+    <div class="container mt-5">
+      <h1>Admin Dashboard</h1>
+      <table class="table table-hover mt-3">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Progress</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+            <tr data-bs-toggle="collapse" data-bs-target="#user{{ user.id }}" aria-expanded="false" aria-controls="user{{ user.id }}" style="cursor: pointer;">
+              <td>{{ user.id }}</td>
+              <td>{{ user.username }}</td>
+              <td>
+                <div class="progress">
+                  <div class="progress-bar" role="progressbar" style="width: {{ user.progress }}%;" aria-valuenow="{{ user.progress }}" aria-valuemin="0" aria-valuemax="100">
+                    {{ user.progress }}%
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr class="collapse" id="user{{ user.id }}">
+              <td colspan="3">
+                <h5>Responses:</h5>
+                {% if user.responses %}
+                  <table class="table table-sm table-bordered">
+                    <thead>
+                      <tr>
+                        
+                        <th>User ID</th>
+                        <th>Clause ID</th>
+                        <th>Clause Type</th>
+                        <th>Clause Text</th>
+                        <th>Choice</th>
+                        <th>Narrative Index</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for resp in user.responses %}
+                        <tr>
+                          
+                          <td>{{ resp.user_id }}</td>
+                          <td>{{ resp.clause_id }}</td>
+                          <td>{{ resp.clause_type }}</td>
+                          <td>{{ resp.clause_text }}</td>
+                          <td>{{ resp.choice }}</td>
+                          <td>{{ resp.narrative_index+1 }}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                {% else %}
+                  <p>No responses recorded.</p>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
 
-    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
   </body>
 </html>

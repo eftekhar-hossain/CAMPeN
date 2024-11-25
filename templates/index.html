@@ -6,21 +6,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-
     <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" 
+          rel="stylesheet" 
+          integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" 
+          crossorigin="anonymous">
     <!-- Our CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
     
-    <link href="{{url_for('static',filename='css/style.css')}}" rel="stylesheet">
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/buttons.js') }}"></script>
-
-    <!-- <script>
-      
-</script> -->
-
     <title>Annotation Page</title>
-    
   </head>
   <body>
     <div class="container">
@@ -36,7 +30,6 @@
             <h4>Narrative 1</h4>
             <div class="narrative-box" id="narrative1">
                 {{ file.n1[current_index] }}
-             
             </div>
           </div>
         </div>
@@ -46,18 +39,15 @@
           <div class="border p-3">
             <h4>Narrative 2</h4>
             <div class="narrative-box" id="narrative2">
-              
                 {{ file.n2[current_index] }}
-              
             </div>
           </div>
-          <!-- <h5>Data# {{current_index}}</h5> -->
         </div>
       </div>
 
       <!-- Next and Previous buttons below the text boxes -->
       <div class="text-center mt-3">
-        <span>Index: {{current_index+1 }}</span>
+        <span>Index: {{ current_index + 1 }}</span>
         <a href="{{ url_for('prev_narrative') }}" class="btn btn-secondary">Prev</a>
         <a href="{{ url_for('next_narrative') }}" class="btn btn-secondary">Next</a>
       </div>
@@ -67,220 +57,247 @@
         <h4>Extract Clauses</h4>
         <div class="d-flex">
           <a href="{{ url_for('overlap_action') }}" class="btn me-2" 
-                    style="background-color: #90EE90; color: black;">
+             style="background-color: #90EE90; color: black;">
             {{ 'Hide Overlap' if show_overlap else 'Show Overlap' }}
           </a>
           <a href="{{ url_for('conflict_action') }}" class="btn btn-danger me-2">
             {{ 'Hide Conflict' if show_conflict else 'Show Conflict' }}
           </a>
           <a href="{{ url_for('unique1_action') }}" class="btn btn-warning me-2" style="color: black;">
-             {{ 'Hide UNQ-1' if show_unique1 else 'Show UNQ-1' }}
-            </a>
-          <a href="{{ url_for('unique2_action') }}" class="btn btn-warning " style="color: black;">
-              {{ 'Hide UNQ-2' if show_unique2 else 'Show UNQ-2' }}
+            {{ 'Hide UNQ-1' if show_unique1 else 'Show UNQ-1' }}
+          </a>
+          <a href="{{ url_for('unique2_action') }}" class="btn btn-warning" style="color: black;">
+            {{ 'Hide UNQ-2' if show_unique2 else 'Show UNQ-2' }}
           </a>
         </div>
         <br/>
       </div>
 
-      
       <!-- Display Overlap Data -->
       {% if show_overlap %}       
-      {% if overlap %}
-        <div id="overlapSection" class="clause-box">
-          <h4>Overlapping Clauses</h4>
-          {% for item in overlap %}
-            <div class="clause-item">
-              <p>
-                <span style="font-weight: bold;">Sentence 1:</span> {{ item['sentence_1'] }}<br>
-                <span style="font-weight: bold;">Sentence 2:</span> {{ item['sentence_2'] }}
-              </p>
-              <!-- Clause item number and buttons aligned at the bottom right of overlap-item -->
-              <div class="d-flex justify-content-between align-items-center mt-2">
-                <!-- Clause item number button -->
-                <span class="badge bg-info text-dark me-2">Clause {{ loop.index }}</span>
-                <!-- <button class="btn btn-primary btn-sm me-auto" onclick="highlightClause(`{{ item['sentence_1'] }}`, `{{ item['sentence_2'] }}`)">Highlight</button> -->
-                <!-- Highlight button with unique ID for each clause -->
-                <button id="highlightBtn{{ loop.index }}" class="btn btn-sm btn-outline-success me-auto" style="font-size: 10px; padding: 2px 6px;" 
-                onclick="highlightClause(`{{ item['sentence_1'] }}`, `{{ item['sentence_2'] }}`, 'highlightBtn{{ loop.index }}', `{{ loop.index }}`)">
-            Highlight
-            </button>
-                <!-- Action buttons on the right -->
-                <div class="d-flex justify-content-end">
+        {% if overlap %}
+          <div id="overlapSection" class="clause-box">
+            <h4>Overlapping Clauses</h4>
+            {% for item in overlap %}
+              <div class="clause-item">
+                <p>
+                  <span style="font-weight: bold;">Sentence 1:</span> {{ item['sentence_1'] }}<br>
+                  <span style="font-weight: bold;">Sentence 2:</span> {{ item['sentence_2'] }}
+                </p>
+                <!-- Clause item number and buttons aligned at the bottom right of overlap-item -->
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                  <!-- Clause item number badge -->
+                  <span class="badge bg-info text-dark me-2">Clause {{ loop.index }}</span>
                   
-                  <button class="btn btn-primary btn-sm me-1 response-button"
-                          data-clause-id="overlap_{{ loop.index }}"
-                          data-clause-type="overlap"
-                          data-choice="agree">Agree</button>
-                  <button class="btn btn-danger btn-sm me-1 response-button"
-                          data-clause-id="overlap_{{ loop.index }}"
-                          data-clause-type="overlap"
-                          data-choice="disagree">Disagree</button>
-                  <button class="btn btn-secondary btn-sm response-button"
-                          data-clause-id="overlap_{{ loop.index }}"
-                          data-clause-type="overlap"
-                          data-choice="neutral">Neutral</button>
+                  <!-- Highlight button with unique ID for each clause -->
+                  <button id="highlightBtn{{ loop.index }}" 
+                          class="btn btn-sm btn-outline-success me-auto" 
+                          style="font-size: 10px; padding: 2px 6px;" 
+                          onclick="highlightClause(`{{ item['sentence_1'] }}`, `{{ item['sentence_2'] }}`, 'highlightBtn{{ loop.index }}', `{{ loop.index }}`)">
+                    Highlight
+                  </button>
+                  
+                  <!-- Action buttons on the right -->
+                  <div class="d-flex justify-content-end">
+                    <button class="btn btn-primary btn-sm me-1 response-button"
+                            data-clause-id="overlap_{{ loop.index }}"
+                            data-clause-type="overlap"
+                            data-choice="agree"
+                            data-clause-text="{{ item['sentence_1'] }} {{ item['sentence_2'] }}">Agree</button>
+                    <button class="btn btn-danger btn-sm me-1 response-button"
+                            data-clause-id="overlap_{{ loop.index }}"
+                            data-clause-text="{{ item['sentence_1'] }} {{ item['sentence_2'] }}"
+                            data-clause-type="overlap"
+                            data-choice="disagree"
+                            data-clause-text="{{ item['sentence_1'] }} {{ item['sentence_2'] }}">Disagree</button>
+                    <button class="btn btn-secondary btn-sm response-button"
+                            data-clause-id="overlap_{{ loop.index }}"
+                            data-clause-type="overlap"
+                            data-choice="neutral"
+                            data-clause-text="{{ item['sentence_1'] }} {{ item['sentence_2'] }}">Neutral</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <div class="clause-item">
-          <p>No overlap clauses available.</p>
-        </div>
-      {% endif %}
-    {% endif %}
-
-      <!-- Display conflict Data -->
-    {% if show_conflict %}   
-      {% if conflict %}
-      <div id="conflictSection" class="clause-box">
-        <h4>Conflicting Clauses</h4>
-        {% for item in conflict %}
+            {% endfor %}
+          </div>
+        {% else %}
           <div class="clause-item">
-            <p>
-              <span style="font-weight: bold;">Sentence 1:</span> {{ item['sentence_1'] }}<br>
-              <span style="font-weight: bold;">Sentence 2:</span> {{ item['sentence_2'] }}
-            </p>
-            <!-- Clause item number and buttons aligned at the bottom right of overlap-item -->
-            <div class="d-flex justify-content-between align-items-center mt-2">
-              <!-- Clause item number button -->
-              <span class="badge bg-info text-dark me-2">Clause {{ loop.index }}</span>
-              <!-- <button class="btn btn-primary btn-sm me-auto" onclick="highlightClause(`{{ item['sentence_1'] }}`, `{{ item['sentence_2'] }}`)">Highlight</button> -->
-              <!-- Highlight button with unique ID for each clause -->
-              <button id="highlightBtn{{ loop.index }}" class="btn btn-sm btn-outline-success me-auto" style="font-size: 10px; padding: 2px 6px;" 
-              onclick="highlightClause(`{{ item['sentence_1'] }}`, `{{ item['sentence_2'] }}`, 'highlightBtn{{ loop.index }}', `{{ loop.index }}`)">
-          Highlight
-          </button>
-              <!-- Action buttons on the right -->
-              <div class="d-flex justify-content-end">
-                
-                <button class="btn btn-primary btn-sm me-1 response-button" 
-                      data-clause-id="overlap_{{ loop.index }}" 
-                      data-clause-type="conflict" 
-                      data-choice="agree">Agree</button>
-                <button class="btn btn-danger btn-sm me-1 response-button" 
-                      data-clause-id="overlap_{{ loop.index }}" 
-                      data-clause-type="conflict" 
-                      data-choice="disagree">Disagree</button>
-                <button class="btn btn-secondary btn-sm response-button" 
-                      data-clause-id="overlap_{{ loop.index }}" 
-                      data-clause-type="conflict" 
-                      data-choice="neutral">Neutral</button>
-              </div>
-            </div>
+            <p>No overlap clauses available.</p>
           </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="clause-item">
-        <p>No Conflict clauses available.</p>
-      </div>
+        {% endif %}
       {% endif %}
 
-    {% endif %}
-
-
-<!-- Display Unique1 Data -->
-{% if show_unique1 %}       
-  {% if unique1 %}
-  <div id="unique1Section" class="clause-box">
-    <h4>Unique Sentences from Narrative 1</h4>
-    {% for item in unique1 %}
-      <div class="clause-item">
-        <p>
-          <span style="font-weight: bold;">Sentence:</span> {{ item['sentence_1'] }}
-          <!-- <span style="font-weight: bold;">Sentence 2:</span> {{ item['sentence_2'] }} -->
-        </p>
-        <!-- Clause item number and buttons aligned at the bottom right of overlap-item -->
-        <div class="d-flex justify-content-between align-items-center mt-2">
-          <!-- Clause item number button -->
-          <span class="badge bg-info text-dark me-2">Clause {{ loop.index }}</span>
-          <!-- <button class="btn btn-primary btn-sm me-auto" onclick="highlightClause(`{{ item['sentence_1'] }}`, `{{ item['sentence_2'] }}`)">Highlight</button> -->
-          <!-- Highlight button with unique ID for each clause -->
-          <button id="highlightBtn{{ loop.index }}" class="btn btn-sm btn-outline-success me-auto" style="font-size: 10px; padding: 2px 6px;" 
-          onclick="highlightUnique1(`{{ item['sentence_1'] }}`, 'highlightBtn{{ loop.index }}', `{{ loop.index }}`)">
-      Highlight
-      </button>
-          <!-- Action buttons on the right -->
-          <div class="d-flex justify-content-end">
-            
-            <button class="btn btn-primary btn-sm me-1 response-button" 
-                      data-clause-id="overlap_{{ loop.index }}" 
-                      data-clause-type="unique1" 
-                      data-choice="agree">Agree</button>
-            <button class="btn btn-danger btn-sm me-1 response-button" 
-                      data-clause-id="overlap_{{ loop.index }}" 
-                      data-clause-type="unique1" 
-                      data-choice="disagree">Disagree</button>
-            <button class="btn btn-secondary btn-sm response-button" 
-                      data-clause-id="overlap_{{ loop.index }}" 
-                      data-clause-type="unique1" 
-                      data-choice="neutral">Neutral</button>
+      <!-- Display Conflict Data -->
+      {% if show_conflict %}   
+        {% if conflict %}
+          <div id="conflictSection" class="clause-box">
+            <h4>Conflicting Clauses</h4>
+            {% for item in conflict %}
+              <div class="clause-item">
+                <p>
+                  <span style="font-weight: bold;">Sentence 1:</span> {{ item['sentence_1'] }}<br>
+                  <span style="font-weight: bold;">Sentence 2:</span> {{ item['sentence_2'] }}
+                </p>
+                <!-- Clause item number and buttons aligned at the bottom right of conflict-item -->
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                  <!-- Clause item number badge -->
+                  <span class="badge bg-info text-dark me-2">Clause {{ loop.index }}</span>
+                  
+                  <!-- Highlight button with unique ID for each clause -->
+                  <button id="highlightBtn{{ loop.index }}" 
+                          class="btn btn-sm btn-outline-success me-auto" 
+                          style="font-size: 10px; padding: 2px 6px;" 
+                          onclick="highlightClause(`{{ item['sentence_1'] }}`, `{{ item['sentence_2'] }}`, 'highlightBtn{{ loop.index }}', `{{ loop.index }}`)">
+                    Highlight
+                  </button>
+                  
+                  <!-- Action buttons on the right -->
+                  <div class="d-flex justify-content-end">
+                    <button class="btn btn-primary btn-sm me-1 response-button" 
+                            data-clause-id="conflict_{{ loop.index }}" 
+                            data-clause-type="conflict" 
+                            data-choice="agree"
+                            data-clause-text="{{ item['sentence_1'] }} {{ item['sentence_2'] }}">Agree</button>
+                    <button class="btn btn-danger btn-sm me-1 response-button" 
+                            data-clause-id="conflict_{{ loop.index }}" 
+                            data-clause-type="conflict" 
+                            data-choice="disagree"
+                            data-clause-text="{{ item['sentence_1'] }} {{ item['sentence_2'] }}">Disagree</button>
+                    <button class="btn btn-secondary btn-sm response-button" 
+                            data-clause-id="conflict_{{ loop.index }}" 
+                            data-clause-type="conflict" 
+                            data-choice="neutral"
+                            data-clause-text="{{ item['sentence_1'] }} {{ item['sentence_2'] }}">Neutral</button>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
           </div>
-        </div>
-      </div>
-    {% endfor %}
-  </div>
-{% else %}
-  <div class="clause-item">
-    <p>No Unique sentences available.</p>
-  </div>
-    {% endif %}
-{% endif %}
-
-
-<!-- Display Unique2 Data -->
-{% if show_unique2 %}       
-  {% if unique2 %}
-  <div id="unique2Section" class="clause-box">
-    <h4>Unique Sentences from Narrative 2</h4>
-    {% for item in unique2 %}
-      <div class="clause-item">
-        <p>
-          <span style="font-weight: bold;">Sentence:</span> {{ item['sentence_2'] }}
-          <!-- <span style="font-weight: bold;">Sentence 2:</span> {{ item['sentence_2'] }} -->
-        </p>
-        <!-- Clause item number and buttons aligned at the bottom right of overlap-item -->
-        <div class="d-flex justify-content-between align-items-center mt-2">
-          <!-- Clause item number button -->
-          <span class="badge bg-info text-dark me-2">Clause {{ loop.index }}</span>
-          <!-- <button class="btn btn-primary btn-sm me-auto" onclick="highlightClause(`{{ item['sentence_1'] }}`, `{{ item['sentence_2'] }}`)">Highlight</button> -->
-          <!-- Highlight button with unique ID for each clause -->
-          <button id="highlightBtn{{ loop.index }}" class="btn btn-sm btn-outline-success me-auto" style="font-size: 10px; padding: 2px 6px;" 
-          onclick="highlightUnique2(`{{ item['sentence_2'] }}`, 'highlightBtn{{ loop.index }}', `{{ loop.index }}`)">
-      Highlight
-      </button>
-          <!-- Action buttons on the right -->
-          <div class="d-flex justify-content-end">
-            
-            <button class="btn btn-primary btn-sm me-1 response-button" 
-                      data-clause-id="overlap_{{ loop.index }}" 
-                      data-clause-type="unique2" 
-                      data-choice="agree">Agree</button>
-            <button class="btn btn-danger btn-sm me-1 response-button" 
-                      data-clause-id="overlap_{{ loop.index }}" 
-                      data-clause-type="unique2" 
-                      data-choice="disagree">Disagree</button>
-            <button class="btn btn-secondary btn-sm response-button" 
-                      data-clause-id="overlap_{{ loop.index }}" 
-                      data-clause-type="unique2" 
-                      data-choice="neutral">Neutral</button>
+        {% else %}
+          <div class="clause-item">
+            <p>No Conflict clauses available.</p>
           </div>
-        </div>
-      </div>
-    {% endfor %}
-  </div>
-{% else %}
-  <div class="clause-item">
-    <p>No Unique sentences available.</p>
-  </div>
-    {% endif %}
-{% endif %}
+        {% endif %}
+      {% endif %}
+
+      <!-- Display Unique1 Data -->
+      {% if show_unique1 %}       
+        {% if unique1 %}
+          <div id="unique1Section" class="clause-box">
+            <h4>Unique Sentences from Narrative 1</h4>
+            {% for item in unique1 %}
+              <div class="clause-item">
+                <p>
+                  <span style="font-weight: bold;">Sentence:</span> {{ item['sentence_1'] }}
+                </p>
+                <!-- Clause item number and buttons aligned at the bottom right of unique1-item -->
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                  <!-- Clause item number badge -->
+                  <span class="badge bg-info text-dark me-2">Clause {{ loop.index }}</span>
+                  
+                  <!-- Highlight button with unique ID for each clause -->
+                  <button id="highlightBtn{{ loop.index }}" 
+                          class="btn btn-sm btn-outline-success me-auto" 
+                          style="font-size: 10px; padding: 2px 6px;" 
+                          onclick="highlightUnique1(`{{ item['sentence_1'] }}`, 'highlightBtn{{ loop.index }}', `{{ loop.index }}`)">
+                    Highlight
+                  </button>
+                  
+                  <!-- Action buttons on the right -->
+                  <div class="d-flex justify-content-end">
+                    <button class="btn btn-primary btn-sm me-1 response-button" 
+                            data-clause-id="unique1_{{ loop.index }}" 
+                            data-clause-type="unique1" 
+                            data-choice="agree"
+                            data-clause-text="{{ item['sentence_1'] }} {{ item['sentence_2'] }}">Agree</button>
+                    <button class="btn btn-danger btn-sm me-1 response-button" 
+                            data-clause-id="unique1_{{ loop.index }}" 
+                            data-clause-type="unique1" 
+                            data-choice="disagree"
+                            data-clause-text="{{ item['sentence_1'] }} {{ item['sentence_2'] }}">Disagree</button>
+                    <button class="btn btn-secondary btn-sm response-button" 
+                            data-clause-id="unique1_{{ loop.index }}" 
+                            data-clause-type="unique1" 
+                            data-choice="neutral"
+                            data-clause-text="{{ item['sentence_1'] }} {{ item['sentence_2'] }}">Neutral</button>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="clause-item">
+            <p>No Unique sentences available.</p>
+          </div>
+        {% endif %}
+      {% endif %}
+
+      <!-- Display Unique2 Data -->
+      {% if show_unique2 %}       
+        {% if unique2 %}
+          <div id="unique2Section" class="clause-box">
+            <h4>Unique Sentences from Narrative 2</h4>
+            {% for item in unique2 %}
+              <div class="clause-item">
+                <p>
+                  <span style="font-weight: bold;">Sentence:</span> {{ item['sentence_2'] }}
+                </p>
+                <!-- Clause item number and buttons aligned at the bottom right of unique2-item -->
+                <div class="d-flex justify-content-between align-items-center mt-2">
+                  <!-- Clause item number badge -->
+                  <span class="badge bg-info text-dark me-2">Clause {{ loop.index }}</span>
+                  
+                  <!-- Highlight button with unique ID for each clause -->
+                  <button id="highlightBtn{{ loop.index }}" 
+                          class="btn btn-sm btn-outline-success me-auto" 
+                          style="font-size: 10px; padding: 2px 6px;" 
+                          onclick="highlightUnique2(`{{ item['sentence_2'] }}`, 'highlightBtn{{ loop.index }}', `{{ loop.index }}`)">
+                    Highlight
+                  </button>
+                  
+                  <!-- Action buttons on the right -->
+                  <div class="d-flex justify-content-end">
+                    <button class="btn btn-primary btn-sm me-1 response-button" 
+                            data-clause-id="unique2_{{ loop.index }}" 
+                            data-clause-type="unique2" 
+                            data-choice="agree"
+                            data-clause-text="{{ item['sentence_1'] }} {{ item['sentence_2'] }}">Agree</button>
+                    <button class="btn btn-danger btn-sm me-1 response-button" 
+                            data-clause-id="unique2_{{ loop.index }}" 
+                            data-clause-type="unique2" 
+                            data-choice="disagree"
+                            data-clause-text="{{ item['sentence_1'] }} {{ item['sentence_2'] }}">Disagree</button>
+                    <button class="btn btn-secondary btn-sm response-button" 
+                            data-clause-id="unique2_{{ loop.index }}" 
+                            data-clause-type="unique2" 
+                            data-choice="neutral"
+                            data-clause-text="{{ item['sentence_1'] }} {{ item['sentence_2'] }}">Neutral</button>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="clause-item">
+            <p>No Unique sentences available.</p>
+          </div>
+        {% endif %}
+      {% endif %}
+
+      <!-- Embed Saved Responses as a JavaScript Variable -->
+      <!-- This script defines a global variable 'savedResponses' containing the user's saved choices -->
+      <script type="text/javascript">
+          const savedResponses = {{ saved_responses | tojson }};
+      </script>
+
+    </div> <!-- End of container -->
 
     <!-- Optional JavaScript -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
-
+    <!-- Move JavaScript includes to the end of the body and add 'defer' to ensure scripts load after HTML -->
+    <script src="{{ url_for('static', filename='js/script.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/buttons.js') }}" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" 
+            integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" 
+            crossorigin="anonymous" defer></script>
   </body>
 </html>

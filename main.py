@@ -10,6 +10,9 @@ from wtforms import StringField, PasswordField, SubmitField
 from wtforms.validators import InputRequired, Length, ValidationError
 from flask_wtf.csrf import CSRFProtect
 from collections import defaultdict
+from sqlalchemy import text
+import random
+
 
 
 
@@ -63,7 +66,9 @@ class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(20), nullable=False, unique=True)
     password = db.Column(db.String(80), nullable=False)
-    isAdmin = db.Column(db.Boolean, default=False) # Admin privilege
+    isAdmin = db.Column(db.Boolean, default=False)  # Admin privilege
+    completed_narratives = db.Column(db.Integer, default=0)  # Tracks completed narratives
+
 
 class registerForm(FlaskForm):
     username = StringField(validators=[InputRequired(), Length(
@@ -96,8 +101,10 @@ class UserResponse(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     clause_id = db.Column(db.String, nullable=False)
     clause_type = db.Column(db.String, nullable=False)  # This is your category
+    clause_text = db.Column(db.Text, nullable=False)  # New field for the actual clause
     choice = db.Column(db.String, nullable=False)  # agree, disagree, neutral
     narrative_index = db.Column(db.Integer, nullable=False)
+
 
     
 
@@ -146,52 +153,30 @@ def show_db_contents():
         return "Access denied", 403
     
     users = User.query.all()
-    return "<br>".join([f"ID: {user.id}, Username: {user.username}" for user in users])
 
-@app.route('/admin/database', methods=['GET'])
-@login_required
-def admin_database_view():
-    if not current_user.isAdmin:  # Ensure only admins can view this page
-        return "Access Denied", 403
-
-    # Query all user responses from the database
-    responses = UserResponse.query.all()
-
-    # Prepare data to send to the template
-    response_data = [
-        {
-            'id': response.id,
-            'user_id': response.user_id,
-            'clause_id': response.clause_id,
-            'clause_type': response.clause_type,
-            'choice': response.choice,
-            'narrative_index': response.narrative_index
-        }
-        for response in responses
-    ]
-
-    return render_template('admin_database.html', responses=response_data)
-
-@app.route('/clear_responses', methods=['POST'])
-@login_required
-def clear_responses():
-    data = request.get_json()
-    user_id = current_user.id
-    clause_id = data['clause_id']
-    clause_type = data['clause_type']
-    narrative_index = session.get('current_index', 0)
-
-    # Query the database to find matching entries and delete them
-    UserResponse.query.filter_by(
-        user_id=user_id,
-        clause_id=clause_id,
-        clause_type=clause_type,
-        narrative_index=narrative_index
-    ).delete()
-
-    db.session.commit()
-
-    return jsonify({'status': 'success', 'message': 'Responses cleared successfully'})
+    user_data = []
+    for user in users:
+        progress = (user.completed_narratives / 5) * 100 if user.completed_narratives <= 5 else 100
+        responses = UserResponse.query.filter_by(user_id=user.id).all()
+        response_data = [
+            {
+                'user_id': resp.user_id,
+                'clause_id': resp.clause_id,
+                'clause_type': resp.clause_type,
+                'clause_text': resp.clause_text,
+                'choice': resp.choice,
+                'narrative_index': resp.narrative_index
+                
+            }
+            for resp in responses
+        ]
+        user_data.append({
+            'id': user.id,
+            'username': user.username,
+            'progress': progress,
+            'responses': response_data
+        })
+    return render_template('admin.html', users=user_data)
 
 
 
@@ -204,8 +189,8 @@ def record_response():
     clause_id = data['clause_id']
     clause_type = data['clause_type']
     choice = data['choice']
+    clause_text = data.get('clause_text', '')  # Retrieve clause_text, default to empty string if not provided
     user_id = current_user.id
-    
 
     narrative_index = session.get('current_index', 0)
 
@@ -219,6 +204,7 @@ def record_response():
     if existing_response:
         #update the existing response
         existing_response.choice = choice
+        existing_response.clause_text = clause_text #update clause text if needed
     else:
         
         # create new response
@@ -228,9 +214,13 @@ def record_response():
             clause_type=clause_type,
             choice=choice,
             narrative_index=narrative_index,
-            custom_id=custom_id
+            custom_id=custom_id,
+            clause_text=clause_text 
         )
         db.session.add(response)
+
+        if not current_user.isAdmin:
+            current_user.completed_narratives += 1
 
     db.session.commit()
 
@@ -246,7 +236,7 @@ def delete_response():
 
     narrative_index = session.get('current_index', 0)
 
-    #Find the existing response
+    # Find the existing response without clause_text
     existing_response = UserResponse.query.filter_by(
         user_id=user_id,
         clause_id=clause_id,
@@ -272,6 +262,19 @@ def index():
     show_unique1 = session.get('show_unique1', False)
     show_unique2 = session.get('show_unique2', False)
 
+    if not current_user.isAdmin and current_user.completed_narratives >= 5:
+        return render_template('completed.html')
+    
+    if 'narrative_order' not in session:
+        session['narrative_order'] = list(range(len(all_narrative_1)))
+        random.shuffle(session['narrative_order'])
+
+    if not current_user.isAdmin and current_index >= 5:
+        return render_template('completed.html')
+
+    narrative_order = session['narrative_order']
+    narrative_index = narrative_order[current_index]
+
     narrative1 = all_narrative_1[current_index]
     narrative2 = all_narrative_2[current_index]
 
@@ -281,47 +284,69 @@ def index():
     unique1_raw = ast.literal_eval(unique1[current_index])
     unique2_raw = ast.literal_eval(unique2[current_index])
 
-    # Clean and prepare data
-    overlap_batch = [{'sentence_1': clean_text(item['sentence_1']), 
-                      'sentence_2': clean_text(item['sentence_2'])} 
-                     for item in overlap_raw]
+    # Clean and prepare data with clause_id and clause_type
+    overlap_batch = [
+        {
+            'sentence_1': clean_text(item['sentence_1']), 
+            'sentence_2': clean_text(item['sentence_2']),
+            'clause_id': f"overlap_{i+1}",
+            'clause_type': 'overlap'
+        }
+        for i, item in enumerate(overlap_raw)
+    ]
 
-    conflict_batch = [{'sentence_1': clean_text(item['sentence_1']), 
-                       'sentence_2': clean_text(item['sentence_2'])} 
-                      for item in conflict_raw]
+    conflict_batch = [
+        {
+            'sentence_1': clean_text(item['sentence_1']), 
+            'sentence_2': clean_text(item['sentence_2']),
+            'clause_id': f"conflict_{i+1}",
+            'clause_type': 'conflict'
+        }
+        for i, item in enumerate(conflict_raw)
+    ]
 
-    unique1_batch = [{'sentence_1': clean_text(item['sentence_1']), 
-                      'sentence_2': item['sentence_2']} 
-                     for item in unique1_raw]
+    unique1_batch = [
+        {
+            'sentence_1': clean_text(item['sentence_1']), 
+            'sentence_2': item['sentence_2'],
+            'clause_id': f"unique1_{i+1}",
+            'clause_type': 'unique1'
+        }
+        for i, item in enumerate(unique1_raw)
+    ]
 
-    unique2_batch = [{'sentence_1': item['sentence_1'], 
-                      'sentence_2': clean_text(item['sentence_2'])} 
-                     for item in unique2_raw]
+    unique2_batch = [
+        {
+            'sentence_1': item['sentence_1'], 
+            'sentence_2': clean_text(item['sentence_2']),
+            'clause_id': f"unique2_{i+1}",
+            'clause_type': 'unique2'
+        }
+        for i, item in enumerate(unique2_raw)
+    ]
     
+    # Query saved responses for current user and narrative index
     responses = UserResponse.query.filter_by(
         user_id=current_user.id,
         narrative_index=current_index
     ).all()
 
-    responses_by_category = defaultdict(list)
-    for response in responses:
-        responses_by_category[response.clause_type].append(response)
-
-    saved_responses_dict = {f"{resp.clause_id}_{resp.clause_type}": resp.choice for resp in responses}
+    # Create a dictionary for saved responses with clause_id as key and choice as value
+    saved_responses_dict = {resp.clause_id: resp.choice for resp in responses}
 
     # Render the template with the prepared data
     return render_template('index.html', 
-                       file=elem, 
-                       current_index=current_index, 
-                       overlap=overlap_batch if show_overlap else [],
-                       conflict=conflict_batch if show_conflict else [],
-                       unique1=unique1_batch if show_unique1 else [],
-                       unique2=unique2_batch if show_unique2 else [],
-                       show_overlap=show_overlap, 
-                       show_conflict=show_conflict,
-                       show_unique1=show_unique1, 
-                       show_unique2=show_unique2,
-                       responses_by_category=responses_by_category)
+                           file=elem, 
+                           current_index=current_index, 
+                           overlap=overlap_batch if show_overlap else [],
+                           conflict=conflict_batch if show_conflict else [],
+                           unique1=unique1_batch if show_unique1 else [],
+                           unique2=unique2_batch if show_unique2 else [],
+                           show_overlap=show_overlap, 
+                           show_conflict=show_conflict,
+                           show_unique1=show_unique1, 
+                           show_unique2=show_unique2,
+                           saved_responses=saved_responses_dict)
 
 
 @app.route('/next')
