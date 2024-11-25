@@ -4,6 +4,8 @@
     <!-- Required meta tags -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
 
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
@@ -11,6 +13,7 @@
     
     <link href="{{url_for('static',filename='css/style.css')}}" rel="stylesheet">
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/buttons.js') }}"></script>
 
     <!-- <script>
       
@@ -105,9 +108,18 @@
                 <!-- Action buttons on the right -->
                 <div class="d-flex justify-content-end">
                   
-                  <button class="btn btn-primary btn-sm me-1">Agree</button>
-                  <button class="btn btn-danger btn-sm me-1">Disagree</button>
-                  <button class="btn btn-secondary btn-sm">Neutral</button>
+                  <button class="btn btn-primary btn-sm me-1 response-button"
+                          data-clause-id="overlap_{{ loop.index }}"
+                          data-clause-type="overlap"
+                          data-choice="agree">Agree</button>
+                  <button class="btn btn-danger btn-sm me-1 response-button"
+                          data-clause-id="overlap_{{ loop.index }}"
+                          data-clause-type="overlap"
+                          data-choice="disagree">Disagree</button>
+                  <button class="btn btn-secondary btn-sm response-button"
+                          data-clause-id="overlap_{{ loop.index }}"
+                          data-clause-type="overlap"
+                          data-choice="neutral">Neutral</button>
                 </div>
               </div>
             </div>
@@ -144,9 +156,18 @@
               <!-- Action buttons on the right -->
               <div class="d-flex justify-content-end">
                 
-                <button class="btn btn-primary btn-sm me-1">Agree</button>
-                <button class="btn btn-danger btn-sm me-1">Disagree</button>
-                <button class="btn btn-secondary btn-sm">Neutral</button>
+                <button class="btn btn-primary btn-sm me-1 response-button" 
+                      data-clause-id="overlap_{{ loop.index }}" 
+                      data-clause-type="conflict" 
+                      data-choice="agree">Agree</button>
+                <button class="btn btn-danger btn-sm me-1 response-button" 
+                      data-clause-id="overlap_{{ loop.index }}" 
+                      data-clause-type="conflict" 
+                      data-choice="disagree">Disagree</button>
+                <button class="btn btn-secondary btn-sm response-button" 
+                      data-clause-id="overlap_{{ loop.index }}" 
+                      data-clause-type="conflict" 
+                      data-choice="neutral">Neutral</button>
               </div>
             </div>
           </div>
@@ -185,9 +206,18 @@
           <!-- Action buttons on the right -->
           <div class="d-flex justify-content-end">
             
-            <button class="btn btn-primary btn-sm me-1">Agree</button>
-            <button class="btn btn-danger btn-sm me-1">Disagree</button>
-            <button class="btn btn-secondary btn-sm">Neutral</button>
+            <button class="btn btn-primary btn-sm me-1 response-button" 
+                      data-clause-id="overlap_{{ loop.index }}" 
+                      data-clause-type="unique1" 
+                      data-choice="agree">Agree</button>
+            <button class="btn btn-danger btn-sm me-1 response-button" 
+                      data-clause-id="overlap_{{ loop.index }}" 
+                      data-clause-type="unique1" 
+                      data-choice="disagree">Disagree</button>
+            <button class="btn btn-secondary btn-sm response-button" 
+                      data-clause-id="overlap_{{ loop.index }}" 
+                      data-clause-type="unique1" 
+                      data-choice="neutral">Neutral</button>
           </div>
         </div>
       </div>
@@ -225,9 +255,18 @@
           <!-- Action buttons on the right -->
           <div class="d-flex justify-content-end">
             
-            <button class="btn btn-primary btn-sm me-1">Agree</button>
-            <button class="btn btn-danger btn-sm me-1">Disagree</button>
-            <button class="btn btn-secondary btn-sm">Neutral</button>
+            <button class="btn btn-primary btn-sm me-1 response-button" 
+                      data-clause-id="overlap_{{ loop.index }}" 
+                      data-clause-type="unique2" 
+                      data-choice="agree">Agree</button>
+            <button class="btn btn-danger btn-sm me-1 response-button" 
+                      data-clause-id="overlap_{{ loop.index }}" 
+                      data-clause-type="unique2" 
+                      data-choice="disagree">Disagree</button>
+            <button class="btn btn-secondary btn-sm response-button" 
+                      data-clause-id="overlap_{{ loop.index }}" 
+                      data-clause-type="unique2" 
+                      data-choice="neutral">Neutral</button>
           </div>
         </div>
       </div>
