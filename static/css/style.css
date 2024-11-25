@@ -34,3 +34,15 @@
   color: white;
   border-color: #007bff;
 }
+
+/* Highlight the selected response button */
+.selected-response {
+  background-color: #28a745 !important; /* Green background */
+  color: white !important;
+  border-color: #28a745 !important;
+}
+
+/* Dim the disabled response buttons */
+.response-button:disabled {
+  opacity: 0.6;
+}
