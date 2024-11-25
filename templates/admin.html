@@ -1,21 +1,37 @@
+<!-- admin.html -->
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Admin Dashboard</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
   </head>
   <body>
     <div class="container mt-5">
       <h1>Admin Dashboard</h1>
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show mt-3" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      
       <table class="table table-hover mt-3">
         <thead>
           <tr>
             <th>ID</th>
             <th>Username</th>
             <th>Progress</th>
+            <th>Actions</th> <!-- New column for actions -->
           </tr>
         </thead>
         <tbody>
@@ -30,15 +46,21 @@
                   </div>
                 </div>
               </td>
+              <td>
+                <!-- Delete User Form -->
+                <form action="{{ url_for('delete_user', user_id=user.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this user?');">
+                  {{ delete_form.hidden_tag() }}
+                  <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+              </td>
             </tr>
             <tr class="collapse" id="user{{ user.id }}">
-              <td colspan="3">
+              <td colspan="4">
                 <h5>Responses:</h5>
                 {% if user.responses %}
                   <table class="table table-sm table-bordered">
                     <thead>
                       <tr>
-                        
                         <th>User ID</th>
                         <th>Clause ID</th>
                         <th>Clause Type</th>
@@ -50,13 +72,12 @@
                     <tbody>
                       {% for resp in user.responses %}
                         <tr>
-                          
                           <td>{{ resp.user_id }}</td>
                           <td>{{ resp.clause_id }}</td>
                           <td>{{ resp.clause_type }}</td>
                           <td>{{ resp.clause_text }}</td>
                           <td>{{ resp.choice }}</td>
-                          <td>{{ resp.narrative_index+1 }}</td>
+                          <td>{{ resp.narrative_index + 1 }}</td>
                         </tr>
                       {% endfor %}
                     </tbody>

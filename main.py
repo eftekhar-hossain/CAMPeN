@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
 import pandas as pd
 import ast,re
 from get_highlighted import get_overlap_narratives, get_conflict_narratives, get_unique_narratives
@@ -105,8 +105,34 @@ class UserResponse(db.Model):
     choice = db.Column(db.String, nullable=False)  # agree, disagree, neutral
     narrative_index = db.Column(db.Integer, nullable=False)
 
-
+class DeleteUserForm(FlaskForm):
+    submit = SubmitField('Delete')
     
+# main.py
+
+@app.route('/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if not current_user.isAdmin:
+        flash('Access denied.', 'danger')
+        return redirect(url_for('show_db_contents'))
+    
+    user_to_delete = User.query.get_or_404(user_id)
+    
+    # Delete associated responses
+    UserResponse.query.filter_by(user_id=user_to_delete.id).delete()
+    
+    # Delete the user
+    db.session.delete(user_to_delete)
+    db.session.commit()
+    
+    flash(f'User {user_to_delete.username} has been deleted.', 'success')
+    return redirect(url_for('show_db_contents'))
+
+
+
+
+
 
 # Login System
 @app.route('/')
@@ -149,14 +175,14 @@ def logout():
 @app.route('/admin')
 @login_required 
 def show_db_contents():
-    if not current_user.isAdmin: # Check if user has admin privilege
+    if not current_user.isAdmin:
         return "Access denied", 403
     
     users = User.query.all()
-
+    delete_form = DeleteUserForm()  # Instantiate the form
+    
     user_data = []
     for user in users:
-        progress = (user.completed_narratives / 5) * 100 if user.completed_narratives <= 5 else 100
         responses = UserResponse.query.filter_by(user_id=user.id).all()
         response_data = [
             {
@@ -166,18 +192,15 @@ def show_db_contents():
                 'clause_text': resp.clause_text,
                 'choice': resp.choice,
                 'narrative_index': resp.narrative_index
-                
             }
             for resp in responses
         ]
         user_data.append({
             'id': user.id,
             'username': user.username,
-            'progress': progress,
             'responses': response_data
         })
-    return render_template('admin.html', users=user_data)
-
+    return render_template('admin.html', users=user_data, delete_form=delete_form)
 
 
 
@@ -219,9 +242,6 @@ def record_response():
         )
         db.session.add(response)
 
-        if not current_user.isAdmin:
-            current_user.completed_narratives += 1
-
     db.session.commit()
 
     return jsonify({'status': 'success'})
@@ -262,19 +282,7 @@ def index():
     show_unique1 = session.get('show_unique1', False)
     show_unique2 = session.get('show_unique2', False)
 
-    if not current_user.isAdmin and current_user.completed_narratives >= 5:
-        return render_template('completed.html')
-    
-    if 'narrative_order' not in session:
-        session['narrative_order'] = list(range(len(all_narrative_1)))
-        random.shuffle(session['narrative_order'])
-
-    if not current_user.isAdmin and current_index >= 5:
-        return render_template('completed.html')
-
-    narrative_order = session['narrative_order']
-    narrative_index = narrative_order[current_index]
-
+    narrative_index = current_index
     narrative1 = all_narrative_1[current_index]
     narrative2 = all_narrative_2[current_index]
 
