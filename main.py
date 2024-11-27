@@ -281,43 +281,57 @@ def export_user_responses(user_id):
     if not current_user.isAdmin:
         return "Access denied", 403
 
-    # Query responses for the specified user
-    responses = UserResponse.query.filter_by(user_id=user_id).all()
+    # Query and sort responses by narrative_index and clause_type
+    responses = UserResponse.query.filter_by(user_id=user_id)\
+                                  .order_by(UserResponse.narrative_index, UserResponse.clause_type)\
+                                  .all()
 
     if not responses:
         flash('No responses found for this user.', 'warning')
         return redirect(url_for('admin'))
 
-    # Prepare data in the desired format
-    export_data = {
-        'Responses': json.dumps([
-            {
-                'Paper#': resp.user_id,
-                'sentence_1': resp.sentence_1 or "",
-                'sentence_2': resp.sentence_2 or "",
-                'human_eval': resp.choice
-            }
-            for resp in responses
-        ])
-    }
+    # Organize responses by narrative_index and clause_type
+    data_dict = defaultdict(lambda: defaultdict(list))
 
-    # Create a DataFrame with a single row and single column
-    df = pd.DataFrame([export_data])
+    for resp in responses:
+        narrative = resp.narrative_index
+        clause = resp.clause_type
+        data_dict[narrative][clause].append({
+            'Paper#': resp.user_id,
+            'sentence_1': resp.sentence_1 or "",
+            'sentence_2': resp.sentence_2 or "",
+            'human_eval': resp.choice
+        })
+
+    # Prepare data for DataFrame
+    export_data = []
+    for narrative, clauses in sorted(data_dict.items()):
+        row = {'Narrative Index': narrative}
+        for clause_type, resp_list in clauses.items():
+            row[clause_type.capitalize()] = json.dumps(resp_list)
+        export_data.append(row)
+
+    # Define all possible clause types for consistent columns
+    all_clauses = sorted({resp.clause_type for resp in responses})
+    column_order = ['Narrative Index'] + [clause.capitalize() for clause in all_clauses]
+
+    # Create a DataFrame
+    df = pd.DataFrame(export_data, columns=column_order)
 
     # Export to Excel with text wrapping
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Responses')
-
-        # Get the workbook and worksheet objects
         workbook  = writer.book
         worksheet = writer.sheets['Responses']
 
         # Define a format with text wrapping
         wrap_format = workbook.add_format({'text_wrap': True})
 
-        # Apply the format to the 'Responses' column
-        worksheet.set_column('A:A', 100, wrap_format)  # Adjust width as needed
+        # Apply the format to all relevant columns
+        for idx, col in enumerate(df.columns):
+            # Set a wide enough column width and apply text wrap
+            worksheet.set_column(idx, idx, 50, wrap_format)
 
     output.seek(0)
 
