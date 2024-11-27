@@ -5,14 +5,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const clauseId = button.getAttribute('data-clause-id');
         const clauseType = button.getAttribute('data-clause-type');
         const choice = button.getAttribute('data-choice');
-        const clauseText = button.getAttribute('data-clause-text'); // Get the clause text
+        const sentence1 = button.getAttribute('data-sentence-1'); 
+        const sentence2 = button.getAttribute('data-sentence-2'); 
 
         // Prepare data to send to the server
         const data = {
             'clause_id': clauseId,
             'clause_type': clauseType,
             'choice': choice,
-            'clause_text': clauseText  // Include clause_text
+            'sentence_1': sentence1,
+            'sentence_2': sentence2
         };
 
         // Retrieve the CSRF token

@@ -1,4 +1,5 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash
+from io import BytesIO
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, send_file
 import pandas as pd
 import ast,re
 from get_highlighted import get_overlap_narratives, get_conflict_narratives, get_unique_narratives
@@ -12,6 +13,9 @@ from flask_wtf.csrf import CSRFProtect
 from collections import defaultdict
 from sqlalchemy import text
 import random
+from flask_migrate import Migrate
+import json
+
 
 
 
@@ -25,10 +29,11 @@ db.init_app(app)
 bcrypt.init_app(app)
 csrf = CSRFProtect(app)
 
-
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
+
+migrate = Migrate(app, db)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -96,13 +101,14 @@ class LoginForm(FlaskForm):
     submit = SubmitField("Login")
 
 class UserResponse(db.Model):
-    id = db.Column(db.Integer, primary_key=True)  # Auto-incrementing ID
-    custom_id = db.Column(db.String, nullable=True, unique=True)  # Custom identifier
+    id = db.Column(db.Integer, primary_key=True)
+    custom_id = db.Column(db.String, nullable=True, unique=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     clause_id = db.Column(db.String, nullable=False)
-    clause_type = db.Column(db.String, nullable=False)  # This is your category
-    clause_text = db.Column(db.Text, nullable=False)  # New field for the actual clause
-    choice = db.Column(db.String, nullable=False)  # agree, disagree, neutral
+    clause_type = db.Column(db.String, nullable=False)
+    sentence_1 = db.Column(db.Text, nullable=True)  
+    sentence_2 = db.Column(db.Text, nullable=True) 
+    choice = db.Column(db.String, nullable=False)
     narrative_index = db.Column(db.Integer, nullable=False)
 
 class DeleteUserForm(FlaskForm):
@@ -189,7 +195,8 @@ def show_db_contents():
                 'user_id': resp.user_id,
                 'clause_id': resp.clause_id,
                 'clause_type': resp.clause_type,
-                'clause_text': resp.clause_text,
+                'sentence_1': resp.sentence_1,
+                'sentence_2': resp.sentence_2,
                 'choice': resp.choice,
                 'narrative_index': resp.narrative_index
             }
@@ -212,25 +219,21 @@ def record_response():
     clause_id = data['clause_id']
     clause_type = data['clause_type']
     choice = data['choice']
-    clause_text = data.get('clause_text', '')  # Retrieve clause_text, default to empty string if not provided
+    sentence_1 = data.get('sentence_1', '')  
+    sentence_2 = data.get('sentence_2', '')  
     user_id = current_user.id
 
     narrative_index = session.get('current_index', 0)
 
-    #custom identifier
     custom_id = f"{user_id}-{narrative_index}-{clause_id}-{clause_type}"
 
-    # check if a response already exists for the user, clause, and narrative index
     existing_response = UserResponse.query.filter_by(custom_id=custom_id).first()
 
-
     if existing_response:
-        #update the existing response
         existing_response.choice = choice
-        existing_response.clause_text = clause_text #update clause text if needed
+        existing_response.sentence_1 = sentence_1
+        existing_response.sentence_2 = sentence_2
     else:
-        
-        # create new response
         response = UserResponse(
             user_id=user_id,
             clause_id=clause_id,
@@ -238,12 +241,12 @@ def record_response():
             choice=choice,
             narrative_index=narrative_index,
             custom_id=custom_id,
-            clause_text=clause_text 
+            sentence_1=sentence_1,
+            sentence_2=sentence_2
         )
         db.session.add(response)
 
     db.session.commit()
-
     return jsonify({'status': 'success'})
 
 @app.route('/delete_response', methods=['DELETE'])
@@ -270,6 +273,61 @@ def delete_response():
         return jsonify({'status': 'success', 'message': 'Response deleted'})
     else: 
         return jsonify({'status': 'error', 'message': 'Response not found'}), 404
+
+
+@app.route('/export_user_responses/<int:user_id>')
+@login_required
+def export_user_responses(user_id):
+    if not current_user.isAdmin:
+        return "Access denied", 403
+
+    # Query responses for the specified user
+    responses = UserResponse.query.filter_by(user_id=user_id).all()
+
+    if not responses:
+        flash('No responses found for this user.', 'warning')
+        return redirect(url_for('admin'))
+
+    # Prepare data in the desired format
+    export_data = {
+        'Responses': json.dumps([
+            {
+                'Paper#': resp.user_id,
+                'sentence_1': resp.sentence_1 or "",
+                'sentence_2': resp.sentence_2 or "",
+                'human_eval': resp.choice
+            }
+            for resp in responses
+        ])
+    }
+
+    # Create a DataFrame with a single row and single column
+    df = pd.DataFrame([export_data])
+
+    # Export to Excel with text wrapping
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Responses')
+
+        # Get the workbook and worksheet objects
+        workbook  = writer.book
+        worksheet = writer.sheets['Responses']
+
+        # Define a format with text wrapping
+        wrap_format = workbook.add_format({'text_wrap': True})
+
+        # Apply the format to the 'Responses' column
+        worksheet.set_column('A:A', 100, wrap_format)  # Adjust width as needed
+
+    output.seek(0)
+
+    # Send the file as an attachment
+    return send_file(
+        output,
+        download_name=f"user_{user_id}_responses.xlsx",
+        as_attachment=True,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
 
 @app.route('/index')
 @login_required
@@ -316,7 +374,7 @@ def index():
     unique1_batch = [
         {
             'sentence_1': clean_text(item['sentence_1']), 
-            'sentence_2': item['sentence_2'],
+            'sentence_2': None,
             'clause_id': f"unique1_{i+1}",
             'clause_type': 'unique1'
         }
@@ -325,7 +383,7 @@ def index():
 
     unique2_batch = [
         {
-            'sentence_1': item['sentence_1'], 
+            'sentence_1': None, 
             'sentence_2': clean_text(item['sentence_2']),
             'clause_id': f"unique2_{i+1}",
             'clause_type': 'unique2'
@@ -448,5 +506,5 @@ def unique2_action():
     return redirect(url_for('index',action=action))
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':    
     app.run(debug=True)
