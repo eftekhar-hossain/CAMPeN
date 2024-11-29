@@ -37,7 +37,15 @@ migrate = Migrate(app, db)
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    user = User.query.get(int(user_id))
+    if user and user.assigned_indices:
+        try:
+            session['assigned_indices'] = json.loads(user.assigned_indices)
+        except json.JSONDecodeError:
+            session['assigned_indices'] = []
+    else:
+        session['assigned_indices'] = []
+    return user
 
 # Sample data
 # a_list = ["How Are You", "I am fine"]
@@ -73,6 +81,7 @@ class User(db.Model, UserMixin):
     password = db.Column(db.String(80), nullable=False)
     isAdmin = db.Column(db.Boolean, default=False)  # Admin privilege
     completed_narratives = db.Column(db.Integer, default=0)  # Tracks completed narratives
+    assigned_indices = db.Column(db.String, nullable=True)  # Stores assigned indices as a JSON string
 
 
 class registerForm(FlaskForm):
@@ -163,10 +172,20 @@ def register():
     form = registerForm()
     
     if form.validate_on_submit():
-        hashedPassword = bcrypt.generate_password_hash(form.password.data)
-        newUser = User(username=form.username.data, password=hashedPassword)
+        hashedPassword = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
+        # Assign random indices
+        total_indices = len(all_narrative_1)
+        assigned_indices = random.sample(range(total_indices), 5)
+        
+        newUser = User(
+            username=form.username.data, 
+            password=hashedPassword,
+            isAdmin=False,  # Set to True if registering an admin
+            assigned_indices=json.dumps(assigned_indices)  # Store as JSON string
+        )
         db.session.add(newUser)
         db.session.commit()
+        flash('Registration successful. Please log in.', 'success')
         return redirect(url_for('login'))
 
     return render_template('register.html', form=form)
@@ -185,30 +204,52 @@ def show_db_contents():
         return "Access denied", 403
     
     users = User.query.all()
-    delete_form = DeleteUserForm()  # Instantiate the form
+    delete_form = DeleteUserForm()
     
     user_data = []
     for user in users:
         responses = UserResponse.query.filter_by(user_id=user.id).all()
-        response_data = [
-            {
-                'user_id': resp.user_id,
-                'clause_id': resp.clause_id,
-                'clause_type': resp.clause_type,
-                'sentence_1': resp.sentence_1,
-                'sentence_2': resp.sentence_2,
-                'choice': resp.choice,
-                'narrative_index': resp.narrative_index
-            }
-            for resp in responses
-        ]
+        # Load assigned indices
+        assigned_indices = json.loads(user.assigned_indices) if user.assigned_indices else []
+        total_indices = len(assigned_indices)
+        indices_completed = 0
+
+        # Calculate progress per index
+        index_progress = {}
+        for index in assigned_indices:
+            user_responses = [resp for resp in responses if resp.narrative_index == index]
+            categories_completed = 0
+            total_categories = 4  # overlap, conflict, unique1, unique2
+            for category in ['overlap', 'conflict', 'unique1', 'unique2']:
+                # Load clauses
+                if category == 'overlap':
+                    clauses = ast.literal_eval(overlap[index])
+                elif category == 'conflict':
+                    clauses = ast.literal_eval(conflict[index])
+                elif category == 'unique1':
+                    clauses = ast.literal_eval(unique1[index])
+                elif category == 'unique2':
+                    clauses = ast.literal_eval(unique2[index])
+                num_clauses = len(clauses)
+                num_responses = len([resp for resp in user_responses if resp.clause_type == category])
+                if num_clauses > 0 and num_responses >= num_clauses:
+                    categories_completed += 1
+            progress = int((categories_completed / total_categories) * 100)
+            index_progress[index] = progress
+            if progress == 100:
+                indices_completed += 1
+
+        # Overall progress
+        overall_progress = int((indices_completed / total_indices) * 100) if total_indices > 0 else 0
+
         user_data.append({
             'id': user.id,
             'username': user.username,
-            'responses': response_data
+            'progress': overall_progress,
+            'index_progress': index_progress,
+            'responses': responses  # Include responses if you want to display them
         })
     return render_template('admin.html', users=user_data, delete_form=delete_form)
-
 
 
 
@@ -370,22 +411,43 @@ def export_user_responses(user_id):
         as_attachment=True,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
+
 @app.route('/index')
 @login_required
 def index():
-    # Retrieve current index from session
-    current_index = session.get('current_index', 0)
+    if current_user.isAdmin:
+        # Admins access all indices
+        assigned_indices = list(range(len(all_narrative_1)))
+        session['assigned_indices'] = assigned_indices
+    else:
+        # Non-admins use assigned indices
+        assigned_indices = session.get('assigned_indices')
+        if assigned_indices is None:
+            if current_user.assigned_indices:
+                assigned_indices = json.loads(current_user.assigned_indices)
+                session['assigned_indices'] = assigned_indices
+            else:
+                flash('No indices assigned to you. Please contact the administrator.', 'danger')
+                return redirect(url_for('logout'))
+
+    current_pos = session.get('current_pos', 0)
+    if current_pos >= len(assigned_indices):
+        flash('You have completed all assigned narratives.', 'success')
+        return redirect(url_for('logout'))
+
+    current_index = assigned_indices[current_pos]
+    session['current_index'] = current_index
+
     # Retrieve toggle states from session
     show_overlap = session.get('show_overlap', False)
     show_conflict = session.get('show_conflict', False)
     show_unique1 = session.get('show_unique1', False)
     show_unique2 = session.get('show_unique2', False)
 
-    narrative_index = current_index
     narrative1 = all_narrative_1[current_index]
     narrative2 = all_narrative_2[current_index]
 
-    # Parse data once
+    # Parse data
     overlap_raw = ast.literal_eval(overlap[current_index])
     conflict_raw = ast.literal_eval(conflict[current_index])
     unique1_raw = ast.literal_eval(unique1[current_index])
@@ -394,7 +456,7 @@ def index():
     # Clean and prepare data with clause_id and clause_type
     overlap_batch = [
         {
-            'sentence_1': clean_text(item['sentence_1']), 
+            'sentence_1': clean_text(item['sentence_1']),
             'sentence_2': clean_text(item['sentence_2']),
             'clause_id': f"overlap_{i+1}",
             'clause_type': 'overlap'
@@ -404,7 +466,7 @@ def index():
 
     conflict_batch = [
         {
-            'sentence_1': clean_text(item['sentence_1']), 
+            'sentence_1': clean_text(item['sentence_1']),
             'sentence_2': clean_text(item['sentence_2']),
             'clause_id': f"conflict_{i+1}",
             'clause_type': 'conflict'
@@ -414,7 +476,7 @@ def index():
 
     unique1_batch = [
         {
-            'sentence_1': clean_text(item['sentence_1']), 
+            'sentence_1': clean_text(item['sentence_1']),
             'sentence_2': None,
             'clause_id': f"unique1_{i+1}",
             'clause_type': 'unique1'
@@ -424,72 +486,172 @@ def index():
 
     unique2_batch = [
         {
-            'sentence_1': None, 
+            'sentence_1': None,
             'sentence_2': clean_text(item['sentence_2']),
             'clause_id': f"unique2_{i+1}",
             'clause_type': 'unique2'
         }
         for i, item in enumerate(unique2_raw)
     ]
-    
-    # Query saved responses for current user and narrative index
+
+    # Query saved responses for current user and current index
     responses = UserResponse.query.filter_by(
         user_id=current_user.id,
         narrative_index=current_index
     ).all()
 
-    # Create a dictionary for saved responses with clause_id as key and choice as value
+    # Create a dictionary for saved responses
     saved_responses_dict = {resp.clause_id: resp.choice for resp in responses}
 
+    # Calculate progress for the current index
+    total_categories = 4  # overlap, conflict, unique1, unique2
+    categories_completed = 0
+
+    responses_by_category = defaultdict(list)
+    for resp in responses:
+        responses_by_category[resp.clause_type].append(resp)
+
+    category_completion = {}
+    for category in ['overlap', 'conflict', 'unique1', 'unique2']:
+        if category == 'overlap':
+            clauses = overlap_batch
+        elif category == 'conflict':
+            clauses = conflict_batch
+        elif category == 'unique1':
+            clauses = unique1_batch
+        elif category == 'unique2':
+            clauses = unique2_batch
+
+        num_clauses = len(clauses)
+        num_responses = len(responses_by_category.get(category, []))
+        if num_clauses > 0 and num_responses >= num_clauses:
+            categories_completed += 1
+            category_completion[category] = True
+        else:
+            category_completion[category] = False
+
+    progress = int((categories_completed / total_categories) * 100)
+
     # Render the template with the prepared data
-    return render_template('index.html', 
-                           file=elem, 
-                           current_index=current_index, 
-                           overlap=overlap_batch if show_overlap else [],
-                           conflict=conflict_batch if show_conflict else [],
-                           unique1=unique1_batch if show_unique1 else [],
-                           unique2=unique2_batch if show_unique2 else [],
-                           show_overlap=show_overlap, 
-                           show_conflict=show_conflict,
-                           show_unique1=show_unique1, 
-                           show_unique2=show_unique2,
-                           saved_responses=saved_responses_dict)
+    return render_template(
+        'index.html',
+        file=elem,
+        current_index=current_index,
+        overlap=overlap_batch if show_overlap else [],
+        conflict=conflict_batch if show_conflict else [],
+        unique1=unique1_batch if show_unique1 else [],
+        unique2=unique2_batch if show_unique2 else [],
+        show_overlap=show_overlap,
+        show_conflict=show_conflict,
+        show_unique1=show_unique1,
+        show_unique2=show_unique2,
+        saved_responses=saved_responses_dict,
+        progress=progress,
+        category_completion=category_completion
+    )
 
 
 @app.route('/next')
 @login_required
 def next_narrative():
+    # Retrieve assigned indices
+    if current_user.isAdmin:
+        # Admins access all indices
+        assigned_indices = list(range(len(all_narrative_1)))
+    else:
+        # Non-admins use assigned indices
+        assigned_indices = session.get('assigned_indices')
+        if assigned_indices is None:
+            if current_user.assigned_indices:
+                assigned_indices = json.loads(current_user.assigned_indices)
+                session['assigned_indices'] = assigned_indices
+            else:
+                flash('No indices assigned to you. Please contact the administrator.', 'danger')
+                return redirect(url_for('logout'))
 
-    # if we want that after pressing the next button clause button reset
-    session['show_overlap'] = False
-    session['show_conflict'] = False
-    session['show_unique1'] = False
-    session['show_unique2'] = False
+    current_pos = session.get('current_pos', 0)
+    current_index = assigned_indices[current_pos]
 
-    # get the current index from the session
-    current_index = session.get('current_index', 0)
-    
-    # Increment index but keep it within the bounds
-    if current_index < len(elem['n1']) - 1:
-        current_index += 1
-    session['current_index'] = current_index # this stores updated index in the session
-    return redirect(url_for('index'))
+    if not current_user.isAdmin:
+        # Non-admin users need to complete all required responses
+        required_categories = ['overlap', 'conflict', 'unique1', 'unique2']
+
+        user_responses = UserResponse.query.filter_by(
+            user_id=current_user.id,
+            narrative_index=current_index
+        ).all()
+
+        responses_by_category = defaultdict(list)
+        for resp in user_responses:
+            responses_by_category[resp.clause_type].append(resp)
+
+        # Check if all clauses in each category have responses
+        all_completed = True
+        for category in required_categories:
+            if category == 'overlap':
+                clauses = ast.literal_eval(overlap[current_index])
+            elif category == 'conflict':
+                clauses = ast.literal_eval(conflict[current_index])
+            elif category == 'unique1':
+                clauses = ast.literal_eval(unique1[current_index])
+            elif category == 'unique2':
+                clauses = ast.literal_eval(unique2[current_index])
+            num_clauses = len(clauses)
+            if len(responses_by_category.get(category, [])) < num_clauses:
+                all_completed = False
+                break
+
+        if not all_completed:
+            flash('Please complete all required responses before proceeding.', 'warning')
+            return redirect(url_for('index'))
+
+    # Proceed to next index
+    current_pos += 1
+    if current_pos >= len(assigned_indices):
+        flash('You have completed all assigned narratives.', 'success')
+        return redirect(url_for('logout'))
+    else:
+        session['current_pos'] = current_pos
+        session['current_index'] = assigned_indices[current_pos]
+        # Reset clause toggles when moving to the next narrative
+        session['show_overlap'] = False
+        session['show_conflict'] = False
+        session['show_unique1'] = False
+        session['show_unique2'] = False
+        return redirect(url_for('index'))
 
 @app.route('/prev')
 @login_required
 def prev_narrative():
-    # if we want that after pressing the prev button clause button reset
+    # Reset clause toggles
     session['show_overlap'] = False
     session['show_conflict'] = False
     session['show_unique1'] = False
     session['show_unique2'] = False
-   
-    # get current index from session
-    current_index = session.get('current_index', 0) 
-    # Decrement index but keep it within the bounds
-    if current_index > 0:
-        current_index -= 1
-    session['current_index'] = current_index
+
+    # Retrieve assigned indices
+    if current_user.isAdmin:
+        # Admins access all indices
+        assigned_indices = list(range(len(all_narrative_1)))
+    else:
+        # Non-admins use assigned indices
+        assigned_indices = session.get('assigned_indices')
+        if assigned_indices is None:
+            if current_user.assigned_indices:
+                assigned_indices = json.loads(current_user.assigned_indices)
+                session['assigned_indices'] = assigned_indices
+            else:
+                flash('No indices assigned to you. Please contact the administrator.', 'danger')
+                return redirect(url_for('logout'))
+
+    current_pos = session.get('current_pos', 0)
+    if current_pos > 0:
+        current_pos -= 1
+        session['current_pos'] = current_pos
+        session['current_index'] = assigned_indices[current_pos]
+    else:
+        flash('You are at the first narrative.', 'info')
+
     return redirect(url_for('index'))
 
 @app.route('/overlap_action')

@@ -28,7 +28,7 @@
             <th>ID</th>
             <th>Username</th>
             <th>Progress</th>
-            <th>Actions</th> <!-- Updated Actions column -->
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -42,6 +42,12 @@
                     {{ user.progress }}%
                   </div>
                 </div>
+                <!-- Display per-index progress -->
+                <ul>
+                  {% for index, progress in user.index_progress.items() %}
+                    <li>Index {{ index + 1 }}: {{ progress }}%</li>
+                  {% endfor %}
+                </ul>
               </td>
               <td>
                 <div class="d-flex gap-2 align-items-center">
@@ -53,10 +59,9 @@
                   <!-- Export User Data Button -->
                   <form action="{{ url_for('export_user_responses', user_id=user.id) }}" method="GET">
                     <button type="submit" class="btn btn-success btn-sm">Export</button>
-                </form>
+                  </form>
                 </div>
               </td>
-              
             </tr>
             <tr class="collapse" id="user{{ user.id }}">
               <td colspan="4">
