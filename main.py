@@ -279,7 +279,8 @@ def delete_response():
 @login_required
 def export_user_responses(user_id):
     if not current_user.isAdmin:
-        return "Access denied", 403
+        flash('Access denied.', 'danger')
+        return redirect(url_for('show_db_contents'))
 
     # Query and sort responses by narrative_index and clause_type
     responses = UserResponse.query.filter_by(user_id=user_id)\
@@ -288,15 +289,15 @@ def export_user_responses(user_id):
 
     if not responses:
         flash('No responses found for this user.', 'warning')
-        return redirect(url_for('admin'))
+        return redirect(url_for('show_db_contents'))
 
     # Organize responses by narrative_index and clause_type
     data_dict = defaultdict(lambda: defaultdict(list))
-
+    
     for resp in responses:
-        narrative = resp.narrative_index
+        narrative_index = resp.narrative_index
         clause = resp.clause_type
-        data_dict[narrative][clause].append({
+        data_dict[narrative_index][clause].append({
             'Paper#': resp.user_id,
             'sentence_1': resp.sentence_1 or "",
             'sentence_2': resp.sentence_2 or "",
@@ -305,20 +306,42 @@ def export_user_responses(user_id):
 
     # Prepare data for DataFrame
     export_data = []
-    for narrative, clauses in sorted(data_dict.items()):
-        row = {'Narrative Index': narrative}
+    column_widths = {}
+    for narrative_index, clauses in sorted(data_dict.items()):
+        # Ensure the narrative_index is within bounds
+        if 0 <= narrative_index < len(all_narrative_1):
+            review1_text = all_narrative_1[narrative_index]
+            review2_text = all_narrative_2[narrative_index]
+        else:
+            review1_text = "Invalid Index"
+            review2_text = "Invalid Index"
+        
+        row = {
+            'Narrative Index': narrative_index,
+            'Review1': review1_text,
+            'Review2': review2_text
+        }
         for clause_type, resp_list in clauses.items():
             row[clause_type.capitalize()] = json.dumps(resp_list)
+        
         export_data.append(row)
+        
+        # Update column widths based on content length
+        for key, value in row.items():
+            # Initialize with the length of the column name if not already set
+            if key not in column_widths:
+                column_widths[key] = len(str(key))
+            # Update to the maximum length found
+            column_widths[key] = max(column_widths[key], len(str(value)))
 
     # Define all possible clause types for consistent columns
     all_clauses = sorted({resp.clause_type for resp in responses})
-    column_order = ['Narrative Index'] + [clause.capitalize() for clause in all_clauses]
+    column_order = ['Narrative Index', 'Review1', 'Review2'] + [clause.capitalize() for clause in all_clauses]
 
-    # Create a DataFrame
+    # Create a DataFrame with the specified column order
     df = pd.DataFrame(export_data, columns=column_order)
 
-    # Export to Excel with text wrapping
+    # Create a BytesIO buffer to hold the Excel file
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Responses')
@@ -328,11 +351,16 @@ def export_user_responses(user_id):
         # Define a format with text wrapping
         wrap_format = workbook.add_format({'text_wrap': True})
 
-        # Apply the format to all relevant columns
+        # Apply dynamic column widths with limits and text wrapping
         for idx, col in enumerate(df.columns):
-            # Set a wide enough column width and apply text wrap
-            worksheet.set_column(idx, idx, 50, wrap_format)
+            # Calculate the width: min(max_length, 100) to prevent overly wide columns
+            width = min(max(column_widths[col], 20), 100)  # Adjust min and max as needed
+            worksheet.set_column(idx, idx, width, wrap_format)
 
+        # Optionally, freeze the header row for better navigation
+        worksheet.freeze_panes(1, 0)
+
+    # Seek to the beginning of the BytesIO buffer
     output.seek(0)
 
     # Send the file as an attachment
@@ -342,7 +370,6 @@ def export_user_responses(user_id):
         as_attachment=True,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-
 @app.route('/index')
 @login_required
 def index():
