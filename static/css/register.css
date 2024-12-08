@@ -1,0 +1,20 @@
+/* Register Page Specific */
+form {
+    width: 350px;
+  }
+  
+  h1 {
+    color: #28a745;
+  }
+  
+  a {
+    margin-top: 15px;
+    font-size: 1rem;
+    color: #28a745;
+  }
+  
+  a:hover {
+    text-decoration: underline;
+    color: #155724;
+  }
+  

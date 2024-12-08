@@ -1,0 +1,98 @@
+/* Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Body Styling */
+body {
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  color: #343a40;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+/* Containers */
+.container {
+  background: white;
+  padding: 40px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+h1 {
+  font-size: 2.5rem;
+  margin-bottom: 20px;
+}
+
+/* Forms */
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+label {
+  font-size: 1rem;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="submit"] {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ced4da;
+  border-radius: 5px;
+  font-size: 1rem;
+}
+
+input[type="submit"] {
+  background: #007bff;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+input[type="submit"]:hover {
+  background: #0056b3;
+}
+
+/* Links */
+a {
+  color: #007bff;
+  text-decoration: none;
+  font-size: 1rem;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Specific Page Colors */
+.links a {
+  display: inline-block;
+  margin: 10px 20px;
+  padding: 10px 20px;
+  border: 2px solid #007bff;
+  border-radius: 5px;
+  background: white;
+  font-size: 1.2rem;
+  transition: 0.3s;
+}
+
+.links a:hover {
+  background: #007bff;
+  color: white;
+}

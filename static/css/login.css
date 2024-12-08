@@ -1,0 +1,20 @@
+/* Login Page Specific */
+form {
+    width: 350px;
+  }
+  
+  h1 {
+    color: #17a2b8;
+  }
+  
+  a {
+    margin-top: 15px;
+    font-size: 1rem;
+    color: #17a2b8;
+  }
+  
+  a:hover {
+    text-decoration: underline;
+    color: #0c5460;
+  }
+  
