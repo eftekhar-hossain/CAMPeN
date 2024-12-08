@@ -416,11 +416,9 @@ def export_user_responses(user_id):
 @login_required
 def index():
     if current_user.isAdmin:
-        # Admins access all indices
         assigned_indices = list(range(len(all_narrative_1)))
         session['assigned_indices'] = assigned_indices
     else:
-        # Non-admins use assigned indices
         assigned_indices = session.get('assigned_indices')
         if assigned_indices is None:
             if current_user.assigned_indices:
@@ -453,7 +451,6 @@ def index():
     unique1_raw = ast.literal_eval(unique1[current_index])
     unique2_raw = ast.literal_eval(unique2[current_index])
 
-    # Clean and prepare data with clause_id and clause_type
     overlap_batch = [
         {
             'sentence_1': clean_text(item['sentence_1']),
@@ -494,45 +491,45 @@ def index():
         for i, item in enumerate(unique2_raw)
     ]
 
-    # Query saved responses for current user and current index
+    # Get saved responses for the current user and index
     responses = UserResponse.query.filter_by(
         user_id=current_user.id,
         narrative_index=current_index
     ).all()
 
-    # Create a dictionary for saved responses
-    saved_responses_dict = {resp.clause_id: resp.choice for resp in responses}
-
-    # Calculate progress for the current index
-    total_categories = 4  # overlap, conflict, unique1, unique2
-    categories_completed = 0
-
+    # Group responses by category
     responses_by_category = defaultdict(list)
     for resp in responses:
         responses_by_category[resp.clause_type].append(resp)
 
-    category_completion = {}
-    for category in ['overlap', 'conflict', 'unique1', 'unique2']:
-        if category == 'overlap':
-            clauses = overlap_batch
-        elif category == 'conflict':
-            clauses = conflict_batch
-        elif category == 'unique1':
-            clauses = unique1_batch
-        elif category == 'unique2':
-            clauses = unique2_batch
+    # Track completion and missing clauses
+    categories = {
+        'overlap': overlap_batch,
+        'conflict': conflict_batch,
+        'unique1': unique1_batch,
+        'unique2': unique2_batch
+    }
 
-        num_clauses = len(clauses)
-        num_responses = len(responses_by_category.get(category, []))
-        if num_clauses > 0 and num_responses >= num_clauses:
+    category_missing = {}
+    categories_completed = 0
+    total_categories = 4
+    for cat_name, clauses_list in categories.items():
+        total_clauses = len(clauses_list)
+        answered_clauses = len(responses_by_category.get(cat_name, []))
+        missing_clauses_count = total_clauses - answered_clauses
+
+        if missing_clauses_count == 0 and total_clauses > 0:
             categories_completed += 1
-            category_completion[category] = True
+            category_missing[cat_name] = []
         else:
-            category_completion[category] = False
+            # Identify which clauses are missing
+            answered_ids = {r.clause_id for r in responses_by_category.get(cat_name, [])}
+            missing_clauses = [c for c in clauses_list if c['clause_id'] not in answered_ids]
+            category_missing[cat_name] = missing_clauses
 
+    # Calculate overall progress
     progress = int((categories_completed / total_categories) * 100)
 
-    # Render the template with the prepared data
     return render_template(
         'index.html',
         file=elem,
@@ -545,11 +542,10 @@ def index():
         show_conflict=show_conflict,
         show_unique1=show_unique1,
         show_unique2=show_unique2,
-        saved_responses=saved_responses_dict,
+        saved_responses={resp.clause_id: resp.choice for resp in responses},
         progress=progress,
-        category_completion=category_completion
+        category_missing=category_missing # Pass info about missing clauses
     )
-
 
 @app.route('/next')
 @login_required
