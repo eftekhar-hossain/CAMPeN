@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin - Narratives</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .content-wrapper {
+      max-width: 600px;
+      word-wrap: break-word; /* Breaks words */
+      white-space: pre-wrap; /* Preserves newlines and wrapping */
+      overflow-wrap: break-word; /* Break long words */
+    }
+  </style>
+</head>
+<body>
+<div class="container mt-5">
+  <h1>Narratives Dashboard</h1>
+  
+  <!-- Flash Messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show mt-3" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <table class="table table-hover mt-3">
+    <thead>
+      <tr>
+        <th>Narrative Index</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for narrative in narratives %}
+        <tr data-bs-toggle="collapse" data-bs-target="#narrative{{ narrative.index }}" aria-expanded="false" aria-controls="narrative{{ narrative.index }}" style="cursor: pointer;">
+          <td>{{ narrative.index + 1 }}</td>
+          <td>
+            <!-- Delete Narrative Button -->
+            <form action="{{ url_for('delete_narrative', narrative_index=narrative.index) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this narrative?');">
+              <button type="submit" class="btn btn-danger btn-sm">Delete Narrative</button>
+            </form>
+          </td>
+        </tr>
+        <tr class="collapse" id="narrative{{ narrative.index }}">
+          <td colspan="2" class="content-wrapper">
+            <h5>Review 1</h5>
+            <p>{{ narrative.review1 }}</p>
+            
+            <h5>Review 2</h5>
+            <p>{{ narrative.review2 }}</p>
+            
+            <h5>Overlap Clauses</h5>
+            <pre>{{ narrative.overlap | tojson(indent=2) }}</pre>
+            
+            <h5>Conflict Clauses</h5>
+            <pre>{{ narrative.conflict | tojson(indent=2) }}</pre>
+            
+            <h5>Unique1 Clauses</h5>
+            <pre>{{ narrative.unique1 | tojson(indent=2) }}</pre>
+            
+            <h5>Unique2 Clauses</h5>
+            <pre>{{ narrative.unique2 | tojson(indent=2) }}</pre>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

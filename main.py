@@ -315,6 +315,65 @@ def delete_response():
     else: 
         return jsonify({'status': 'error', 'message': 'Response not found'}), 404
 
+@app.route('/add_excel', methods=['POST'])
+@login_required
+def add_excel():
+    if not current_user.isAdmin:
+        flash('Access denied.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    if 'new_excel' not in request.files:
+        flash('No file selected.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    file = request.files['new_excel']
+    if file.filename == '':
+        flash('No selected file.', 'warning')
+        return redirect(url_for('show_db_contents'))
+
+    # Validate file extension
+    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+        flash('Invalid file type. Please upload an Excel file.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    # Try reading the Excel file
+    try:
+        new_data = pd.read_excel(file)
+    except Exception as e:
+        flash(f'Failed to read Excel file: {str(e)}', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    # Validate required columns
+    required_columns = {'Review1', 'Review2', 'is_overlap', 'is_conflict', 'is_unique_n1', 'is_unique_n2'}
+    if not required_columns.issubset(new_data.columns):
+        flash('Uploaded file does not have the required columns.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    # Check if file is empty
+    if new_data.empty:
+        flash('The uploaded Excel file is empty.', 'warning')
+        return redirect(url_for('show_db_contents'))
+
+    # Prevent duplicate entries
+    global all_narrative_1, all_narrative_2, overlap, conflict, unique1, unique2
+    existing_texts = set(all_narrative_1 + all_narrative_2)
+    new_texts = set(new_data['Review1'].tolist() + new_data['Review2'].tolist())
+    duplicates = existing_texts.intersection(new_texts)
+
+    # Clean and append data
+    new_narrative_1 = [clean_text(txt) for txt in new_data['Review1'].tolist() if txt not in duplicates]
+    new_narrative_2 = [clean_text(txt) for txt in new_data['Review2'].tolist() if txt not in duplicates]
+
+    overlap.extend(new_data['is_overlap'].tolist())
+    conflict.extend(new_data['is_conflict'].tolist())
+    unique1.extend(new_data['is_unique_n1'].tolist())
+    unique2.extend(new_data['is_unique_n2'].tolist())
+
+    flash(f'Successfully added {len(new_narrative_1)} new narratives from uploaded Excel.', 'success')
+    if duplicates:
+        flash(f'{len(duplicates)} duplicate narratives were skipped.', 'info')
+
+    return redirect(url_for('show_db_contents'))
 
 @app.route('/export_user_responses/<int:user_id>')
 @login_required
@@ -411,6 +470,149 @@ def export_user_responses(user_id):
         as_attachment=True,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
+
+@app.route('/delete_narrative/<int:narrative_index>', methods=['POST'])
+@login_required
+def delete_narrative(narrative_index):
+    if not current_user.isAdmin:
+        flash('Access denied.', 'danger')
+        return redirect(url_for('show_narratives'))
+
+    # Validate the index
+    if narrative_index < 0 or narrative_index >= len(all_narrative_1):
+        flash('Invalid narrative index.', 'danger')
+        return redirect(url_for('show_narratives'))
+
+    # Delete the narrative and corresponding clauses
+    del all_narrative_1[narrative_index]
+    del all_narrative_2[narrative_index]
+    del overlap[narrative_index]
+    del conflict[narrative_index]
+    del unique1[narrative_index]
+    del unique2[narrative_index]
+
+    flash('Narrative deleted successfully.', 'success')
+    return redirect(url_for('show_narratives'))
+
+@app.route('/edit_response', methods=['POST'])
+@login_required
+def edit_response():
+    if not current_user.isAdmin:
+        flash('Access denied.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    response_id = request.form.get('response_id')
+    new_choice = request.form.get('new_choice')
+
+    response = UserResponse.query.get(response_id)
+    if not response:
+        flash('Response not found.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    # Update the choice
+    response.choice = new_choice
+    db.session.commit()
+
+    flash('Response updated successfully.', 'success')
+    return redirect(url_for('show_db_contents'))
+
+@app.route('/delete_specific_response', methods=['POST'])
+@login_required
+def delete_specific_response():
+    if not current_user.isAdmin:
+        flash('Access denied.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    response_id = request.form.get('response_id')
+    response = UserResponse.query.get(response_id)
+    if not response:
+        flash('Response not found.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    db.session.delete(response)
+    db.session.commit()
+
+    flash('Response deleted successfully.', 'success')
+    return redirect(url_for('show_db_contents'))
+
+@app.route('/admin/narratives')
+@login_required
+def show_narratives():
+    if not current_user.isAdmin:
+        return "Access denied", 403
+
+    narratives = []
+    total_narratives = len(all_narrative_1)
+    
+    for i in range(total_narratives):
+        # Extract narrative text
+        review1_text = all_narrative_1[i]
+        review2_text = all_narrative_2[i]
+
+        # Extract clauses (raw, as stored in strings)
+        overlap_raw = ast.literal_eval(overlap[i])
+        conflict_raw = ast.literal_eval(conflict[i])
+        unique1_raw = ast.literal_eval(unique1[i])
+        unique2_raw = ast.literal_eval(unique2[i])
+
+        # Prepare a structured dict for the template
+        narrative_data = {
+            'index': i,
+            'review1': review1_text,
+            'review2': review2_text,
+            'overlap': overlap_raw,
+            'conflict': conflict_raw,
+            'unique1': unique1_raw,
+            'unique2': unique2_raw,
+        }
+        narratives.append(narrative_data)
+
+    return render_template('adminNarratives.html', narratives=narratives)
+
+@app.route('/add_narrative_to_user/<int:user_id>', methods=['POST'])
+@login_required
+def add_narrative_to_user(user_id):
+    if not current_user.isAdmin:
+        flash('Access denied.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    user = User.query.get_or_404(user_id)
+    new_narrative_str = request.form.get('new_narrative')
+
+    if not new_narrative_str.isdigit():
+        flash('Invalid narrative number.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    # Convert to int, but remember you are probably showing narratives as 1-based to users:
+    # If user enters 12 meaning the 12th narrative displayed, and actual indexing is zero-based:
+    # Then narrative_index should be new_narrative - 1 to align with 0-based indexing.
+    new_narrative = int(new_narrative_str) - 1
+
+    # Check if the narrative exists
+    total_indices = len(all_narrative_1)
+    if new_narrative < 0 or new_narrative >= total_indices:
+        flash(f'Narrative {new_narrative + 1} does not exist.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    # Load user's assigned narratives
+    if user.assigned_indices:
+        assigned_indices = json.loads(user.assigned_indices)
+    else:
+        assigned_indices = []
+
+    # Check if narrative already assigned
+    if new_narrative in assigned_indices:
+        flash(f'Narrative {new_narrative + 1} is already assigned to user {user.username}.', 'info')
+        return redirect(url_for('show_db_contents'))
+
+    # Add the new narrative
+    assigned_indices.append(new_narrative)
+    user.assigned_indices = json.dumps(assigned_indices)
+    db.session.commit()
+
+    flash(f'Added Narrative {new_narrative + 1} to user {user.username}.', 'success')
+    return redirect(url_for('show_db_contents'))
+
 
 @app.route('/index')
 @login_required
