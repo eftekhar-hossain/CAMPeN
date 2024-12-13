@@ -49,7 +49,7 @@
 
       <!-- Navigation buttons -->
       <div class="text-center mt-3 d-flex justify-content-center align-items-center">
-        <span class="me-3">Index: {{ current_index + 1 }}</span>
+        <span class="me-3">Index: {{ current_index + 1 }}/{{ total_indices }}</span>
         <a href="{{ url_for('prev_narrative') }}" class="btn btn-secondary me-2">Prev</a>
         <a href="{{ url_for('next_narrative') }}" class="btn btn-secondary me-2">Next</a>
 
@@ -101,6 +101,16 @@
       <!-- Display Overlap Data -->
       {% if show_overlap %}       
         {% if overlap %}
+        {% set unanswered = [] %}
+          {% set answered = [] %}
+
+          {% for item in overlap %}
+            {% if item['clause_id'] in saved_responses %}
+              {% set answered = answered + [item] %}
+            {% else %}
+              {% set unanswered = unanswered + [item] %}
+            {% endif %}
+          {% endfor %}
           <div id="overlapSection" class="clause-box">
             <h4>Overlapping Clauses</h4>
             {% for item in overlap %}
@@ -151,6 +161,16 @@
       <!-- Display Conflict Data -->
       {% if show_conflict %}   
         {% if conflict %}
+        {% set unanswered = [] %}
+          {% set answered = [] %}
+
+          {% for item in overlap %}
+            {% if item['clause_id'] in saved_responses %}
+              {% set answered = answered + [item] %}
+            {% else %}
+              {% set unanswered = unanswered + [item] %}
+            {% endif %}
+          {% endfor %}
           <div id="conflictSection" class="clause-box">
             <h4>Conflicting Clauses</h4>
             {% for item in conflict %}
@@ -201,6 +221,16 @@
       <!-- Display Unique1 Data -->
       {% if show_unique1 %}       
         {% if unique1 %}
+        {% set unanswered = [] %}
+          {% set answered = [] %}
+
+          {% for item in overlap %}
+            {% if item['clause_id'] in saved_responses %}
+              {% set answered = answered + [item] %}
+            {% else %}
+              {% set unanswered = unanswered + [item] %}
+            {% endif %}
+          {% endfor %}
           <div id="unique1Section" class="clause-box">
             <h4>Unique Sentences from Narrative 1</h4>
             {% for item in unique1 %}
@@ -250,6 +280,16 @@
       <!-- Display Unique2 Data -->
       {% if show_unique2 %}       
         {% if unique2 %}
+          {% set unanswered = [] %}
+          {% set answered = [] %}
+
+          {% for item in overlap %}
+            {% if item['clause_id'] in saved_responses %}
+              {% set answered = answered + [item] %}
+            {% else %}
+              {% set unanswered = unanswered + [item] %}
+            {% endif %}
+          {% endfor %}
           <div id="unique2Section" class="clause-box">
             <h4>Unique Sentences from Narrative 2</h4>
             {% for item in unique2 %}

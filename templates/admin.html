@@ -10,11 +10,22 @@
         margin-bottom: 10px;  
         margin-top: 10px;
       }
+      .header-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+      }
     </style>
   </head>
   <body>
     <div class="container mt-5">
-      <h1>Admin Dashboard</h1>
+      <div class="header-bar">
+        <h1>Admin Dashboard</h1>
+        <a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
+      </div>
+      <br/>
+
       
       <!-- Flash Messages -->
       {% with messages = get_flashed_messages(with_categories=true) %}
@@ -66,18 +77,11 @@
                   <form action="{{ url_for('export_user_responses', user_id=user.id) }}" method="GET">
                     <button type="submit" class="btn btn-success btn-sm">Export</button>
                   </form>
-                  <form action="{{ url_for('add_excel') }}" method="POST" enctype="multipart/form-data" class="d-inline-block">
+                  <form action="{{ url_for('assign_excel_to_user', user_id=user.id) }}" method="POST" enctype="multipart/form-data" class="d-inline-block">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> 
-                    <input type="file" name="new_excel" accept=".xlsx" required>
-                    <button type="submit" class="btn btn-primary btn-sm">Add New Excel</button>
-                  </form>
-                  <form action="{{ url_for('add_narrative_to_user', user_id=user.id) }}" method="POST" class="d-inline-block">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> 
-                    <input type="number" name="new_narrative" min="1" placeholder="Narrative #" required>
-                    <button type="submit" class="btn btn-warning btn-sm">Add Narrative</button>
-                  </form>
-                  
-                  
+                    <input type="file" name="new_excel" accept=".xlsx,.xls" required>
+                    <button type="submit" class="btn btn-primary btn-sm">Assign Excel to User</button>
+                  </form>                 
                 </div>
               </td>
             </tr>

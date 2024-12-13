@@ -19,7 +19,7 @@ import json
 
 
 
-
+user_narratives = {}  # Global dictionary to store per-user narratives
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Replace with a secure key for sessions
 # link app to database.db
@@ -173,15 +173,12 @@ def register():
     
     if form.validate_on_submit():
         hashedPassword = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
-        # Assign random indices
-        total_indices = len(all_narrative_1)
-        assigned_indices = random.sample(range(total_indices), 5)
-        
+        # Assign random indices        
         newUser = User(
             username=form.username.data, 
             password=hashedPassword,
-            isAdmin=False,  # Set to True if registering an admin
-            assigned_indices=json.dumps(assigned_indices)  # Store as JSON string
+            isAdmin=False, 
+            assigned_indices=json.dumps([]) 
         )
         db.session.add(newUser)
         db.session.commit()
@@ -354,25 +351,108 @@ def add_excel():
         flash('The uploaded Excel file is empty.', 'warning')
         return redirect(url_for('show_db_contents'))
 
-    # Prevent duplicate entries
+    # Clear existing narratives and responses
     global all_narrative_1, all_narrative_2, overlap, conflict, unique1, unique2
-    existing_texts = set(all_narrative_1 + all_narrative_2)
-    new_texts = set(new_data['Review1'].tolist() + new_data['Review2'].tolist())
-    duplicates = existing_texts.intersection(new_texts)
+    
+    all_narrative_1.clear()
+    all_narrative_2.clear()
+    overlap.clear()
+    conflict.clear()
+    unique1.clear()
+    unique2.clear()
 
-    # Clean and append data
-    new_narrative_1 = [clean_text(txt) for txt in new_data['Review1'].tolist() if txt not in duplicates]
-    new_narrative_2 = [clean_text(txt) for txt in new_data['Review2'].tolist() if txt not in duplicates]
-
+    # Populate with new narratives
+    all_narrative_1.extend(new_data['Review1'].apply(clean_text).tolist())
+    all_narrative_2.extend(new_data['Review2'].apply(clean_text).tolist())
     overlap.extend(new_data['is_overlap'].tolist())
     conflict.extend(new_data['is_conflict'].tolist())
     unique1.extend(new_data['is_unique_n1'].tolist())
     unique2.extend(new_data['is_unique_n2'].tolist())
 
-    flash(f'Successfully added {len(new_narrative_1)} new narratives from uploaded Excel.', 'success')
-    if duplicates:
-        flash(f'{len(duplicates)} duplicate narratives were skipped.', 'info')
+    # Delete all old responses as they no longer map to valid narratives
+    UserResponse.query.delete()
 
+    # Reset all users' assigned narratives
+    users = User.query.all()
+    for user in users:
+        user.assigned_indices = json.dumps([])
+
+    db.session.commit()
+
+    flash(f'Successfully replaced narratives with {len(all_narrative_1)} new narratives from uploaded Excel.', 'success')
+    flash('No narratives are currently assigned to any user. Please assign narratives to users as needed.', 'info')
+    return redirect(url_for('show_db_contents'))
+
+@app.route('/assign_excel_to_user/<int:user_id>', methods=['POST'])
+@login_required
+def assign_excel_to_user(user_id):
+    if not current_user.isAdmin:
+        flash('Access denied.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    user = User.query.get_or_404(user_id)
+
+    if 'new_excel' not in request.files:
+        flash('No file selected.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    file = request.files['new_excel']
+    if file.filename == '':
+        flash('No selected file.', 'warning')
+        return redirect(url_for('show_db_contents'))
+
+    # Validate file extension
+    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+        flash('Invalid file type. Please upload an Excel file.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    # Try reading the Excel file
+    try:
+        new_data = pd.read_excel(file)
+    except Exception as e:
+        flash(f'Failed to read Excel file: {str(e)}', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    # Validate required columns
+    required_columns = {'Review1', 'Review2', 'is_overlap', 'is_conflict', 'is_unique_n1', 'is_unique_n2'}
+    if not required_columns.issubset(new_data.columns):
+        flash('Uploaded file does not have the required columns.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    # Check if file is empty
+    if new_data.empty:
+        flash('The uploaded Excel file is empty.', 'warning')
+        return redirect(url_for('show_db_contents'))
+
+    # Clean and extract narratives for that user
+    user_all_narrative_1 = new_data['Review1'].apply(clean_text).tolist()
+    user_all_narrative_2 = new_data['Review2'].apply(clean_text).tolist()
+    user_overlap = new_data['is_overlap'].tolist()
+    user_conflict = new_data['is_conflict'].tolist()
+    user_unique1 = new_data['is_unique_n1'].tolist()
+    user_unique2 = new_data['is_unique_n2'].tolist()
+
+    # Clear user responses for old narratives
+    UserResponse.query.filter_by(user_id=user_id).delete()
+
+    # Assign new narratives to that user
+    assigned_indices = list(range(len(user_all_narrative_1)))
+    user.assigned_indices = json.dumps(assigned_indices)
+
+    # Save to db
+    db.session.commit()
+
+    # Update our global dictionary
+    user_narratives[user_id] = {
+        'all_narrative_1': user_all_narrative_1,
+        'all_narrative_2': user_all_narrative_2,
+        'overlap': user_overlap,
+        'conflict': user_conflict,
+        'unique1': user_unique1,
+        'unique2': user_unique2
+    }
+
+    flash(f'Successfully assigned {len(assigned_indices)} new narratives to user {user.username}.', 'success')
     return redirect(url_for('show_db_contents'))
 
 @app.route('/export_user_responses/<int:user_id>')
@@ -569,6 +649,8 @@ def show_narratives():
 
     return render_template('adminNarratives.html', narratives=narratives)
 
+
+#Delete later?
 @app.route('/add_narrative_to_user/<int:user_id>', methods=['POST'])
 @login_required
 def add_narrative_to_user(user_id):
@@ -613,22 +695,38 @@ def add_narrative_to_user(user_id):
     flash(f'Added Narrative {new_narrative + 1} to user {user.username}.', 'success')
     return redirect(url_for('show_db_contents'))
 
-
 @app.route('/index')
 @login_required
 def index():
     if current_user.isAdmin:
-        assigned_indices = list(range(len(all_narrative_1)))
-        session['assigned_indices'] = assigned_indices
-    else:
-        assigned_indices = session.get('assigned_indices')
-        if assigned_indices is None:
-            if current_user.assigned_indices:
-                assigned_indices = json.loads(current_user.assigned_indices)
-                session['assigned_indices'] = assigned_indices
-            else:
-                flash('No indices assigned to you. Please contact the administrator.', 'danger')
-                return redirect(url_for('logout'))
+        return redirect(url_for('show_db_contents'))
+
+    # Load assigned_indices from the user model if not in session
+    if 'assigned_indices' not in session:
+        if current_user.assigned_indices:
+            session['assigned_indices'] = json.loads(current_user.assigned_indices)
+        else:
+            session['assigned_indices'] = []
+    assigned_indices = session['assigned_indices']
+
+    # Check if user has assigned narratives
+    if not assigned_indices:
+        return render_template('noAssignments.html')
+
+    # Check if we have the user's narratives in user_narratives
+    if current_user.id not in user_narratives or len(user_narratives[current_user.id]['all_narrative_1']) == 0:
+        # User has assigned indices but no narratives loaded - possibly an error case
+        # Treat as no assignments for safety
+        return render_template('noAssignments.html')
+
+    # At this point, user_narratives has this user's narratives
+    narratives = user_narratives[current_user.id]
+    all_narrative_1 = narratives['all_narrative_1']
+    all_narrative_2 = narratives['all_narrative_2']
+    overlap = narratives['overlap']
+    conflict = narratives['conflict']
+    unique1 = narratives['unique1']
+    unique2 = narratives['unique2']
 
     current_pos = session.get('current_pos', 0)
     if current_pos >= len(assigned_indices):
@@ -647,7 +745,6 @@ def index():
     narrative1 = all_narrative_1[current_index]
     narrative2 = all_narrative_2[current_index]
 
-    # Parse data
     overlap_raw = ast.literal_eval(overlap[current_index])
     conflict_raw = ast.literal_eval(conflict[current_index])
     unique1_raw = ast.literal_eval(unique1[current_index])
@@ -699,12 +796,10 @@ def index():
         narrative_index=current_index
     ).all()
 
-    # Group responses by category
     responses_by_category = defaultdict(list)
     for resp in responses:
         responses_by_category[resp.clause_type].append(resp)
 
-    # Track completion and missing clauses
     categories = {
         'overlap': overlap_batch,
         'conflict': conflict_batch,
@@ -724,18 +819,21 @@ def index():
             categories_completed += 1
             category_missing[cat_name] = []
         else:
-            # Identify which clauses are missing
             answered_ids = {r.clause_id for r in responses_by_category.get(cat_name, [])}
             missing_clauses = [c for c in clauses_list if c['clause_id'] not in answered_ids]
             category_missing[cat_name] = missing_clauses
 
-    # Calculate overall progress
     progress = int((categories_completed / total_categories) * 100)
+
+    elem = {"n1": all_narrative_1, "n2": all_narrative_2}
+
+    total_indices = len(assigned_indices)
 
     return render_template(
         'index.html',
         file=elem,
         current_index=current_index,
+        total_indices=total_indices,
         overlap=overlap_batch if show_overlap else [],
         conflict=conflict_batch if show_conflict else [],
         unique1=unique1_batch if show_unique1 else [],
@@ -746,7 +844,7 @@ def index():
         show_unique2=show_unique2,
         saved_responses={resp.clause_id: resp.choice for resp in responses},
         progress=progress,
-        category_missing=category_missing # Pass info about missing clauses
+        category_missing=category_missing
     )
 
 @app.route('/next')

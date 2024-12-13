@@ -1,4 +1,14 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Retrieve answered clauses from localStorage or initialize an empty array
+    let answeredClauses = JSON.parse(localStorage.getItem('answeredClauses')) || [];
+
+    // Function to move a clause to the bottom of its parent container
+    function moveClauseToBottom(clauseItem) {
+        const clauseBox = clauseItem.parentNode;
+        clauseBox.removeChild(clauseItem);
+        clauseBox.appendChild(clauseItem);
+    }
+
     // Function to handle response button click
     function handleResponseButtonClick(event) {
         const button = event.currentTarget;
@@ -32,6 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(result => {
             if (result.status === 'success') {
+                const clauseItem = button.closest('.clause-item');
                 const parentDiv = button.parentElement;
                 const buttons = parentDiv.querySelectorAll('.response-button');
 
@@ -50,32 +61,28 @@ document.addEventListener('DOMContentLoaded', function() {
                     existingRedo.remove();
                 }
 
-                // Create and insert the "Redo" button on the left side
+                // Create and insert the "Redo" button
                 const redoButton = document.createElement('button');
                 redoButton.textContent = 'Redo';
                 redoButton.className = 'btn btn-warning btn-sm me-2 redo-button';
-
-                // Insert the "Redo" button before the response buttons
                 parentDiv.insertBefore(redoButton, parentDiv.firstChild);
 
-                // Add event listener to "Redo" button
+                // Add event listener to the "Redo" button
                 redoButton.addEventListener('click', function() {
                     // Re-enable all response buttons
                     buttons.forEach(btn => btn.disabled = false);
-
-                    // Remove visual feedback from previously selected button
                     buttons.forEach(btn => btn.classList.remove('selected-response'));
-
-                    // Remove the "Redo" button
                     redoButton.remove();
 
-                    // Prepare data to send to the server
+                    // Prepare data to send to the server to delete response
                     const deleteData = {
                         'clause_id': clauseId,
                         'clause_type': clauseType
                     };
 
-                    // Send a DELETE request to the server to remove the existing response
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+                    // Delete response from the server
                     fetch('/delete_response', {
                         method: 'DELETE',
                         headers: {
@@ -88,6 +95,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     .then(result => {
                         if (result.status === 'success') {
                             console.log('Response deleted from database');
+                            // Remove from answeredClauses
+                            answeredClauses = answeredClauses.filter(id => id !== clauseId);
+                            localStorage.setItem('answeredClauses', JSON.stringify(answeredClauses));
+                            // Optionally move clause back up: 
+                            // To do so, you'd need to remember original positions or just leave it as is.
                         } else {
                             console.error('Error deleting response:', result.message);
                         }
@@ -96,10 +108,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         console.error('Error:', error);
                     });
                 });
+
+                // Move the clause item to the bottom
+                moveClauseToBottom(clauseItem);
+
+                // Add this clause to answeredClauses in localStorage
+                if (!answeredClauses.includes(clauseId)) {
+                    answeredClauses.push(clauseId);
+                    localStorage.setItem('answeredClauses', JSON.stringify(answeredClauses));
+                }
+
             } else {
                 console.error('Error recording response:', result.message);
             }
-        })
+        })        
         .catch(error => {
             console.error('Error:', error);
         });
@@ -116,9 +138,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (savedResponses.hasOwnProperty(clauseId)) {
                 const choice = savedResponses[clauseId];
                 const clauseType = clauseId.split('_')[0]; // Derive clauseType from clauseId
-
-                // Since savedResponses now only have clauseId and choice, fetch clause_text from DOM
-                // Find the button with the specific clauseId and choice
                 const button = document.querySelector(`.response-button[data-clause-id="${clauseId}"][data-clause-type="${clauseType}"][data-choice="${choice}"]`);
 
                 if (button) {
@@ -142,23 +161,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     redoButton.addEventListener('click', function() {
                         // Re-enable all response buttons
                         buttons.forEach(btn => btn.disabled = false);
-
-                        // Remove visual feedback from previously selected button
                         buttons.forEach(btn => btn.classList.remove('selected-response'));
-
-                        // Remove the "Redo" button
                         redoButton.remove();
 
-                        // Prepare data to send to the server
                         const deleteData = {
                             'clause_id': clauseId,
                             'clause_type': clauseType
                         };
 
-                        // Retrieve the CSRF token
                         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-                        // Send a DELETE request to the server to remove the existing response
                         fetch('/delete_response', {
                             method: 'DELETE',
                             headers: {
@@ -171,6 +183,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         .then(result => {
                             if (result.status === 'success') {
                                 console.log('Response deleted from database');
+                                answeredClauses = answeredClauses.filter(id => id !== clauseId);
+                                localStorage.setItem('answeredClauses', JSON.stringify(answeredClauses));
                             } else {
                                 console.error('Error deleting response:', result.message);
                             }
@@ -183,4 +197,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     }
+
+    // On page load, move all answered clauses to the bottom
+    answeredClauses.forEach(clauseId => {
+        const clauseItem = document.querySelector(`.response-button[data-clause-id="${clauseId}"]`)?.closest('.clause-item');
+        if (clauseItem) {
+            moveClauseToBottom(clauseItem);
+        }
+    });
 });
