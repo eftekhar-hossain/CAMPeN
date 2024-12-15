@@ -15,6 +15,22 @@
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
     
     <title>Annotation Page</title>
+    <style>
+      .alert {
+        padding: 15px;
+        margin-bottom: 20px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        font-size: 16px;
+        text-align: center;
+      }
+      
+      .alert-info {
+        color: #0c5460;
+        background-color: #d1ecf1;
+        border-color: #bee5eb;
+      }
+    </style>
   </head>
   <body>
     <div class="container">
@@ -23,6 +39,18 @@
         <a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
       </div>
       <br/>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            {% if category == 'index' %}
+              <div class="alert alert-info alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
 
       <!-- Row container for narratives -->
       <div class="row" id="narrativeBox">

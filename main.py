@@ -160,11 +160,16 @@ def login():
 
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data).first()
-        if user:
-            if bcrypt.check_password_hash(user.password, form.password.data):
-                login_user(user)
-                return redirect(url_for('index'))
+        if user and bcrypt.check_password_hash(user.password, form.password.data):
+            login_user(user)
+            session['current_pos'] = 0
+            if user.assigned_indices:
+                assigned_indices = json.loads(user.assigned_indices)
+                if assigned_indices:
+                    session['current_index'] = assigned_indices[0]
+            return redirect(url_for('index'))
 
+    flash('Invalid username or password.', 'danger')
     return render_template('login.html', form=form)
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -182,7 +187,7 @@ def register():
         )
         db.session.add(newUser)
         db.session.commit()
-        flash('Registration successful. Please log in.', 'success')
+        flash('Registration successful. Please log in.', 'registerSuccess')
         return redirect(url_for('login'))
 
     return render_template('register.html', form=form)
@@ -195,48 +200,62 @@ def logout():
 
 # below shows current directory of users
 @app.route('/admin')
-@login_required 
+@login_required
 def show_db_contents():
     if not current_user.isAdmin:
         return "Access denied", 403
-    
+
     users = User.query.all()
     delete_form = DeleteUserForm()
-    
+
     user_data = []
     for user in users:
         responses = UserResponse.query.filter_by(user_id=user.id).all()
-        # Load assigned indices
         assigned_indices = json.loads(user.assigned_indices) if user.assigned_indices else []
         total_indices = len(assigned_indices)
         indices_completed = 0
 
-        # Calculate progress per index
+        # Check if user has custom narratives assigned
+        if user.id in user_narratives and user_narratives[user.id]['all_narrative_1']:
+            user_overlap = user_narratives[user.id]['overlap']
+            user_conflict = user_narratives[user.id]['conflict']
+            user_unique1 = user_narratives[user.id]['unique1']
+            user_unique2 = user_narratives[user.id]['unique2']
+        else:
+            # Fall back to global narratives if user doesn't have custom ones
+            user_overlap = overlap
+            user_conflict = conflict
+            user_unique1 = unique1
+            user_unique2 = unique2
+
         index_progress = {}
         for index in assigned_indices:
             user_responses = [resp for resp in responses if resp.narrative_index == index]
             categories_completed = 0
             total_categories = 4  # overlap, conflict, unique1, unique2
+
+            # For each category, load clauses from the correct source
             for category in ['overlap', 'conflict', 'unique1', 'unique2']:
-                # Load clauses
                 if category == 'overlap':
-                    clauses = ast.literal_eval(overlap[index])
+                    clauses = ast.literal_eval(user_overlap[index])
                 elif category == 'conflict':
-                    clauses = ast.literal_eval(conflict[index])
+                    clauses = ast.literal_eval(user_conflict[index])
                 elif category == 'unique1':
-                    clauses = ast.literal_eval(unique1[index])
+                    clauses = ast.literal_eval(user_unique1[index])
                 elif category == 'unique2':
-                    clauses = ast.literal_eval(unique2[index])
+                    clauses = ast.literal_eval(user_unique2[index])
+
                 num_clauses = len(clauses)
                 num_responses = len([resp for resp in user_responses if resp.clause_type == category])
                 if num_clauses > 0 and num_responses >= num_clauses:
                     categories_completed += 1
+
             progress = int((categories_completed / total_categories) * 100)
             index_progress[index] = progress
             if progress == 100:
                 indices_completed += 1
 
-        # Overall progress
+        # Overall progress for user
         overall_progress = int((indices_completed / total_indices) * 100) if total_indices > 0 else 0
 
         user_data.append({
@@ -244,8 +263,9 @@ def show_db_contents():
             'username': user.username,
             'progress': overall_progress,
             'index_progress': index_progress,
-            'responses': responses  # Include responses if you want to display them
+            'responses': responses
         })
+
     return render_template('admin.html', users=user_data, delete_form=delete_form)
 
 
@@ -615,86 +635,6 @@ def delete_specific_response():
     flash('Response deleted successfully.', 'success')
     return redirect(url_for('show_db_contents'))
 
-@app.route('/admin/narratives')
-@login_required
-def show_narratives():
-    if not current_user.isAdmin:
-        return "Access denied", 403
-
-    narratives = []
-    total_narratives = len(all_narrative_1)
-    
-    for i in range(total_narratives):
-        # Extract narrative text
-        review1_text = all_narrative_1[i]
-        review2_text = all_narrative_2[i]
-
-        # Extract clauses (raw, as stored in strings)
-        overlap_raw = ast.literal_eval(overlap[i])
-        conflict_raw = ast.literal_eval(conflict[i])
-        unique1_raw = ast.literal_eval(unique1[i])
-        unique2_raw = ast.literal_eval(unique2[i])
-
-        # Prepare a structured dict for the template
-        narrative_data = {
-            'index': i,
-            'review1': review1_text,
-            'review2': review2_text,
-            'overlap': overlap_raw,
-            'conflict': conflict_raw,
-            'unique1': unique1_raw,
-            'unique2': unique2_raw,
-        }
-        narratives.append(narrative_data)
-
-    return render_template('adminNarratives.html', narratives=narratives)
-
-
-#Delete later?
-@app.route('/add_narrative_to_user/<int:user_id>', methods=['POST'])
-@login_required
-def add_narrative_to_user(user_id):
-    if not current_user.isAdmin:
-        flash('Access denied.', 'danger')
-        return redirect(url_for('show_db_contents'))
-
-    user = User.query.get_or_404(user_id)
-    new_narrative_str = request.form.get('new_narrative')
-
-    if not new_narrative_str.isdigit():
-        flash('Invalid narrative number.', 'danger')
-        return redirect(url_for('show_db_contents'))
-
-    # Convert to int, but remember you are probably showing narratives as 1-based to users:
-    # If user enters 12 meaning the 12th narrative displayed, and actual indexing is zero-based:
-    # Then narrative_index should be new_narrative - 1 to align with 0-based indexing.
-    new_narrative = int(new_narrative_str) - 1
-
-    # Check if the narrative exists
-    total_indices = len(all_narrative_1)
-    if new_narrative < 0 or new_narrative >= total_indices:
-        flash(f'Narrative {new_narrative + 1} does not exist.', 'danger')
-        return redirect(url_for('show_db_contents'))
-
-    # Load user's assigned narratives
-    if user.assigned_indices:
-        assigned_indices = json.loads(user.assigned_indices)
-    else:
-        assigned_indices = []
-
-    # Check if narrative already assigned
-    if new_narrative in assigned_indices:
-        flash(f'Narrative {new_narrative + 1} is already assigned to user {user.username}.', 'info')
-        return redirect(url_for('show_db_contents'))
-
-    # Add the new narrative
-    assigned_indices.append(new_narrative)
-    user.assigned_indices = json.dumps(assigned_indices)
-    db.session.commit()
-
-    flash(f'Added Narrative {new_narrative + 1} to user {user.username}.', 'success')
-    return redirect(url_for('show_db_contents'))
-
 @app.route('/index')
 @login_required
 def index():
@@ -730,7 +670,7 @@ def index():
 
     current_pos = session.get('current_pos', 0)
     if current_pos >= len(assigned_indices):
-        flash('You have completed all assigned narratives.', 'success')
+        flash('You have completed all assigned narratives.', 'index')
         return redirect(url_for('logout'))
 
     current_index = assigned_indices[current_pos]
@@ -868,6 +808,19 @@ def next_narrative():
     current_pos = session.get('current_pos', 0)
     current_index = assigned_indices[current_pos]
 
+    # Determine which narratives to use
+    if current_user.id in user_narratives and len(user_narratives[current_user.id]['all_narrative_1']) > 0:
+        overlap_local = user_narratives[current_user.id]['overlap']
+        conflict_local = user_narratives[current_user.id]['conflict']
+        unique1_local = user_narratives[current_user.id]['unique1']
+        unique2_local = user_narratives[current_user.id]['unique2']
+    else:
+        # Fall back to global arrays
+        overlap_local = overlap
+        conflict_local = conflict
+        unique1_local = unique1
+        unique2_local = unique2
+
     if not current_user.isAdmin:
         # Non-admin users need to complete all required responses
         required_categories = ['overlap', 'conflict', 'unique1', 'unique2']
@@ -881,30 +834,31 @@ def next_narrative():
         for resp in user_responses:
             responses_by_category[resp.clause_type].append(resp)
 
-        # Check if all clauses in each category have responses
         all_completed = True
         for category in required_categories:
             if category == 'overlap':
-                clauses = ast.literal_eval(overlap[current_index])
+                clauses = ast.literal_eval(overlap_local[current_index])
             elif category == 'conflict':
-                clauses = ast.literal_eval(conflict[current_index])
+                clauses = ast.literal_eval(conflict_local[current_index])
             elif category == 'unique1':
-                clauses = ast.literal_eval(unique1[current_index])
+                clauses = ast.literal_eval(unique1_local[current_index])
             elif category == 'unique2':
-                clauses = ast.literal_eval(unique2[current_index])
+                clauses = ast.literal_eval(unique2_local[current_index])
+
             num_clauses = len(clauses)
-            if len(responses_by_category.get(category, [])) < num_clauses:
+            answered_clauses = len(responses_by_category.get(category, []))
+            if answered_clauses < num_clauses:
                 all_completed = False
                 break
 
         if not all_completed:
-            flash('Please complete all required responses before proceeding.', 'warning')
+            flash('Please complete all required responses before proceeding.', 'index')
             return redirect(url_for('index'))
 
     # Proceed to next index
     current_pos += 1
     if current_pos >= len(assigned_indices):
-        flash('You have completed all assigned narratives.', 'success')
+        flash('You have completed all assigned narratives.', 'index')
         return redirect(url_for('logout'))
     else:
         session['current_pos'] = current_pos
@@ -946,7 +900,7 @@ def prev_narrative():
         session['current_pos'] = current_pos
         session['current_index'] = assigned_indices[current_pos]
     else:
-        flash('You are at the first narrative.', 'info')
+        flash('You are at the first narrative.', 'index')
 
     return redirect(url_for('index'))
 
