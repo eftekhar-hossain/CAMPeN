@@ -35,6 +35,7 @@ migrate = Migrate(app, db)
 def clean_text(text):
     return re.sub(r'\s+', ' ', re.sub(r"[\"“”:']", "", str(text))).strip()
 
+# Load initial data from annotation_oct18.xlsx (no Paper# column expected)
 data = pd.read_excel("annotation_oct18.xlsx")
 
 all_narrative_1 = data['Review1'].apply(clean_text).tolist()
@@ -60,8 +61,7 @@ class registerForm(FlaskForm):
     submit = SubmitField("Register")
 
     def validate_username(self, username):
-        existingUserUsername = User.query.filter_by(
-            username=username.data).first()
+        existingUserUsername = User.query.filter_by(username=username.data).first()
         if existingUserUsername:
             raise ValidationError("That username already exists, Please choose a different one.")
 
@@ -131,8 +131,7 @@ def login():
             if assigned_indices:
                 session['current_index'] = assigned_indices[0]
 
-            # Fallback: If user has assigned indices but no custom narratives,
-            # load from global if user_narratives is empty
+            # Fallback if no custom narratives loaded for this user
             if user.id not in user_narratives:
                 if assigned_indices:
                     user_narratives[user.id] = {
@@ -187,7 +186,6 @@ def show_db_contents():
         total_indices = len(assigned_indices)
         indices_completed = 0
 
-        # Decide whose narratives to use
         if user.id in user_narratives and user_narratives[user.id]['all_narrative_1']:
             user_overlap = user_narratives[user.id]['overlap']
             user_conflict = user_narratives[user.id]['conflict']
@@ -203,7 +201,7 @@ def show_db_contents():
         for index in assigned_indices:
             user_responses = [resp for resp in responses if resp.narrative_index == index]
             categories_completed = 0
-            total_categories = 4  # overlap, conflict, unique1, unique2
+            total_categories = 4
 
             for category in ['overlap', 'conflict', 'unique1', 'unique2']:
                 if category == 'overlap':
@@ -398,7 +396,6 @@ def assign_excel_to_user(user_id):
         flash('The uploaded Excel file is empty.', 'warning')
         return redirect(url_for('show_db_contents'))
 
-    # Create custom narratives for this user
     user_all_narrative_1 = new_data['Review1'].apply(clean_text).tolist()
     user_all_narrative_2 = new_data['Review2'].apply(clean_text).tolist()
     user_overlap = new_data['is_overlap'].tolist()
@@ -409,13 +406,11 @@ def assign_excel_to_user(user_id):
     # Clear user responses for old narratives
     UserResponse.query.filter_by(user_id=user_id).delete()
 
-    # Assign new narratives to that user
     assigned_indices = list(range(len(user_all_narrative_1)))
     user.assigned_indices = json.dumps(assigned_indices)
 
     db.session.commit()
 
-    # Update our global dictionary for this user
     user_narratives[user_id] = {
         'all_narrative_1': user_all_narrative_1,
         'all_narrative_2': user_all_narrative_2,
@@ -428,11 +423,37 @@ def assign_excel_to_user(user_id):
     flash(f'Successfully assigned {len(assigned_indices)} new narratives to user {user.username}.', 'success')
     return redirect(url_for('show_db_contents'))
 
+def get_paper_number(narrative_index, user_id):
+    # Fetch data from user or global narratives
+    if user_id in user_narratives and user_narratives[user_id]['all_narrative_1']:
+        overlap_str = user_narratives[user_id]['overlap'][narrative_index]
+        conflict_str = user_narratives[user_id]['conflict'][narrative_index]
+        unique1_str = user_narratives[user_id]['unique1'][narrative_index]
+        unique2_str = user_narratives[user_id]['unique2'][narrative_index]
+    else:
+        overlap_str = overlap[narrative_index]
+        conflict_str = conflict[narrative_index]
+        unique1_str = unique1[narrative_index]
+        unique2_str = unique2[narrative_index]
+
+    # Each is a string representation of a list of dicts
+    for cat_str in [overlap_str, conflict_str, unique1_str, unique2_str]:
+        cat_data = ast.literal_eval(cat_str)
+        if cat_data and 'Paper#' in cat_data[0]:
+            return cat_data[0]['Paper#']
+
+    return "Unknown"
+
 @app.route('/export_user_responses/<int:user_id>')
 @login_required
 def export_user_responses(user_id):
     if not current_user.isAdmin:
         flash('Access denied.', 'danger')
+        return redirect(url_for('show_db_contents'))
+
+    user = User.query.get(user_id)
+    if not user:
+        flash('User not found.', 'danger')
         return redirect(url_for('show_db_contents'))
 
     responses = UserResponse.query.filter_by(user_id=user_id)\
@@ -446,8 +467,10 @@ def export_user_responses(user_id):
     data_dict = defaultdict(lambda: defaultdict(list))
     for resp in responses:
         narrative_index = resp.narrative_index
+        paper_num = get_paper_number(narrative_index, user_id)
+
         data_dict[narrative_index][resp.clause_type].append({
-            'Paper#': resp.user_id,
+            'Paper#': paper_num,
             'sentence_1': resp.sentence_1 or "",
             'sentence_2': resp.sentence_2 or "",
             'human_eval': resp.choice
@@ -455,10 +478,17 @@ def export_user_responses(user_id):
 
     export_data = []
     column_widths = {}
+    if user_id in user_narratives and user_narratives[user_id]['all_narrative_1']:
+        narrative_1_source = user_narratives[user_id]['all_narrative_1']
+        narrative_2_source = user_narratives[user_id]['all_narrative_2']
+    else:
+        narrative_1_source = all_narrative_1
+        narrative_2_source = all_narrative_2
+
     for narrative_index, clauses in sorted(data_dict.items()):
-        if 0 <= narrative_index < len(all_narrative_1):
-            review1_text = all_narrative_1[narrative_index]
-            review2_text = all_narrative_2[narrative_index]
+        if 0 <= narrative_index < len(narrative_1_source):
+            review1_text = narrative_1_source[narrative_index]
+            review2_text = narrative_2_source[narrative_index]
         else:
             review1_text = "Invalid Index"
             review2_text = "Invalid Index"
@@ -485,7 +515,7 @@ def export_user_responses(user_id):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Responses')
-        workbook  = writer.book
+        workbook = writer.book
         worksheet = writer.sheets['Responses']
         wrap_format = workbook.add_format({'text_wrap': True})
         for idx, col in enumerate(df.columns):
@@ -578,8 +608,6 @@ def index():
     if not assigned_indices:
         return render_template('noAssignments.html')
 
-    # If this user doesn't have their narratives in user_narratives,
-    # use the global narratives as a fallback if needed
     if current_user.id not in user_narratives:
         user_narratives[current_user.id] = {
             'all_narrative_1': all_narrative_1,
