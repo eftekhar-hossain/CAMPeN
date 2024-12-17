@@ -128,22 +128,38 @@ def login():
             login_user(user)
             session['current_pos'] = 0
             assigned_indices = json.loads(user.assigned_indices) if user.assigned_indices else []
-            if assigned_indices:
-                session['current_index'] = assigned_indices[0]
 
-            # Fallback if no custom narratives loaded for this user
-            if user.id not in user_narratives:
+            user_responses = UserResponse.query.filter_by(user_id=user.id).all()
+            
+            if current_user.isAdmin:
+                # Admins skip assignment logic and go directly to admin page
+                return redirect(url_for('show_db_contents'))
+            
+            if not assigned_indices:
+                if user_responses:
+                    # User had assignments before and completed them all
+                    return render_template('completed.html')
+                else:
+                    # User never had assignments at all
+                    return render_template('noAssignments.html')
+            else:
+                # Non-admin logic
                 if assigned_indices:
-                    user_narratives[user.id] = {
-                        'all_narrative_1': all_narrative_1,
-                        'all_narrative_2': all_narrative_2,
-                        'overlap': overlap,
-                        'conflict': conflict,
-                        'unique1': unique1,
-                        'unique2': unique2
-                    }
+                    session['current_index'] = assigned_indices[0]
 
-            return redirect(url_for('index'))
+                    # Fallback if no custom narratives loaded for this user
+                    if user.id not in user_narratives:
+                        if assigned_indices:
+                            user_narratives[user.id] = {
+                                'all_narrative_1': all_narrative_1,
+                                'all_narrative_2': all_narrative_2,
+                                'overlap': overlap,
+                                'conflict': conflict,
+                                'unique1': unique1,
+                                'unique2': unique2
+                            }
+
+                    return redirect(url_for('index'))
 
     flash('Invalid username or password.', 'danger')
     return render_template('login.html', form=form)
@@ -197,11 +213,12 @@ def show_db_contents():
             user_unique1 = unique1
             user_unique2 = unique2
 
+        # After computing index_progress as before, also compute how many narratives are fully completed.
         index_progress = {}
         for index in assigned_indices:
             user_responses = [resp for resp in responses if resp.narrative_index == index]
             categories_completed = 0
-            total_categories = 4
+            total_categories = 4  # overlap, conflict, unique1, unique2
 
             for category in ['overlap', 'conflict', 'unique1', 'unique2']:
                 if category == 'overlap':
@@ -220,18 +237,23 @@ def show_db_contents():
 
             progress = int((categories_completed / total_categories) * 100)
             index_progress[index] = progress
-            if progress == 100:
-                indices_completed += 1
+
+        # Count how many narratives are fully completed
+        indices_completed = sum(1 for p in index_progress.values() if p == 100)
 
         overall_progress = int((indices_completed / total_indices) * 100) if total_indices > 0 else 0
 
+        # Add these values to the user_data dictionary
         user_data.append({
             'id': user.id,
             'username': user.username,
             'progress': overall_progress,
-            'index_progress': index_progress,
-            'responses': responses
+            'index_progress': index_progress,  # still included if needed
+            'responses': responses,
+            'indices_completed': indices_completed,
+            'total_indices': total_indices
         })
+
 
     return render_template('admin.html', users=user_data, delete_form=delete_form)
 
@@ -606,7 +628,11 @@ def index():
 
     assigned_indices = session['assigned_indices']
     if not assigned_indices:
-        return render_template('noAssignments.html')
+        user_responses = UserResponse.query.filter_by(user_id=current_user.id).all()
+        if user_responses:
+            return render_template('completed.html')
+        else:
+            return render_template('noAssignments.html')
 
     if current_user.id not in user_narratives:
         user_narratives[current_user.id] = {
@@ -629,7 +655,8 @@ def index():
     current_pos = session.get('current_pos', 0)
     if current_pos >= len(assigned_indices):
         flash('You have completed all assigned narratives.', 'index')
-        return redirect(url_for('logout'))
+        return render_template('completed.html')
+
 
     current_index = assigned_indices[current_pos]
     session['current_index'] = current_index
@@ -804,7 +831,7 @@ def next_narrative():
     current_pos += 1
     if current_pos >= len(assigned_indices):
         flash('You have completed all assigned narratives.', 'index')
-        return redirect(url_for('logout'))
+        return render_template('completed.html')
     else:
         session['current_pos'] = current_pos
         session['current_index'] = assigned_indices[current_pos]

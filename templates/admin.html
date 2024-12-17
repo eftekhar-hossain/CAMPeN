@@ -16,14 +16,26 @@
         align-items: center;
         margin-bottom: 15px;
       }
+      .header-bar=buttons {
+        float: left;
+      }
+      .pdfButton {
+        margin-right: 10px;
+        background-color: orange;
+        color: white;
+      }
     </style>
   </head>
   <body>
     <div class="container mt-5">
       <div class="header-bar">
         <h1>Admin Dashboard</h1>
+      </div>
+      <div class="header-bar-buttons">
+        <a href="{{url_for('logout')}}" class="btn pdfButton">Import PDF</a>
         <a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
       </div>
+
       <br/>
 
       
@@ -60,11 +72,9 @@
                   </div>
                 </div>
                 <!-- Display per-index progress -->
-                <ul>
-                  {% for index, progress in user.index_progress.items() %}
-                    <li>Index {{ index + 1 }}: {{ progress }}%</li>
-                  {% endfor %}
-                </ul>
+                <!-- Show a summary like the user sees: "Completed X/Y" -->
+              <p>Completed {{ user.indices_completed }} out of {{ user.total_indices }} narratives</p>
+
               </td>
               <td>
                 <div class="d-flex gap-2 align-items-center">
