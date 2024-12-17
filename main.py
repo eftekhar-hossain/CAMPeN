@@ -641,7 +641,7 @@ def upload_pdf():
 def view_guidelines():
     pdf_path = 'static/guidelines.pdf'
     if not os.path.exists(pdf_path):
-        flash('No guidelines PDF available. Please contact the administrator.', 'warning')
+        flash('No guidelines PDF available. Please contact the administrator.', 'guidelines_warning')
         return redirect(url_for('index'))
     
     return send_file(pdf_path, as_attachment=True, download_name='Guidelines.pdf')
@@ -686,7 +686,7 @@ def index():
 
     current_pos = session.get('current_pos', 0)
     if current_pos >= len(assigned_indices):
-        flash('You have completed all assigned narratives.', 'index')
+        flash('You have completed all assigned narratives.', 'success')
         return render_template('completed.html')
 
     current_index = assigned_indices[current_pos]

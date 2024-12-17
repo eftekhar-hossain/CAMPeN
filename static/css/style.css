@@ -102,4 +102,44 @@
         align-items: center;
         margin-bottom: 15px;
       }
+
+
+      .alert {
+        padding: 15px;
+        margin-bottom: 20px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        font-size: 16px;
+        text-align: center;
+      }
+      
+      .alert-info {
+        color: #0c5460;
+        background-color: #d1ecf1;
+        border-color: #bee5eb;
+      }
+      .pdfButton {
+        margin-right: 10px;
+        background-color: orange;
+        color: white;
+      }
+
+      .flash-messages {
+        margin: 10px 0;
+      }
+      
+      .alert {
+        padding: 10px 15px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+      }
+      
+      .alert-warning {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      .alert-message {
+        background-color: #D1ECD9;
+        color: #5ed6c4;
+      }
       

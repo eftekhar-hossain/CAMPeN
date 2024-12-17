@@ -15,46 +15,6 @@
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
     
     <title>Annotation Page</title>
-    <style>
-      .alert {
-        padding: 15px;
-        margin-bottom: 20px;
-        border: 1px solid transparent;
-        border-radius: 4px;
-        font-size: 16px;
-        text-align: center;
-      }
-      
-      .alert-info {
-        color: #0c5460;
-        background-color: #d1ecf1;
-        border-color: #bee5eb;
-      }
-      .header-bar=buttons {
-        float: left;
-      }
-      .pdfButton {
-        margin-right: 10px;
-        background-color: orange;
-        color: white;
-      }
-
-      .flash-messages {
-        margin: 10px 0;
-      }
-      
-      .alert {
-        padding: 10px 15px;
-        margin-bottom: 10px;
-        border-radius: 5px;
-      }
-      
-      .alert-warning {
-        background-color: #f8d7da;
-        color: #721c24;
-      }
-      
-    </style>
   </head>
   <body>
     <div class="container">
@@ -62,15 +22,18 @@
         <h1>Evaluation Phase</h1>
         <a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
       </div>
-      <div class="header-bar-buttons">
+      <div>
         <a href="{{ url_for('view_guidelines') }}" class="btn pdfButton">Guidelines</a>
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             <div class="flash-messages">
               {% for category, message in messages %}
-                <div class="alert alert-warning alert-{{ warning }}">
-                  {{ message }}
-                </div>
+                {% if category == 'guidelines_warning' %}
+                  <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                  </div>
+                {% endif %}
               {% endfor %}
             </div>
           {% endif %}
