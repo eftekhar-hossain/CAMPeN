@@ -30,6 +30,30 @@
         background-color: #d1ecf1;
         border-color: #bee5eb;
       }
+      .header-bar=buttons {
+        float: left;
+      }
+      .pdfButton {
+        margin-right: 10px;
+        background-color: orange;
+        color: white;
+      }
+
+      .flash-messages {
+        margin: 10px 0;
+      }
+      
+      .alert {
+        padding: 10px 15px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+      }
+      
+      .alert-warning {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      
     </style>
   </head>
   <body>
@@ -37,6 +61,21 @@
       <div class="header-bar">
         <h1>Evaluation Phase</h1>
         <a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
+      </div>
+      <div class="header-bar-buttons">
+        <a href="{{ url_for('view_guidelines') }}" class="btn pdfButton">Guidelines</a>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-messages">
+              {% for category, message in messages %}
+                <div class="alert alert-warning alert-{{ warning }}">
+                  {{ message }}
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
       </div>
       <br/>
       {% with messages = get_flashed_messages(with_categories=true) %}

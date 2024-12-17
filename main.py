@@ -15,6 +15,7 @@ from sqlalchemy import text
 import random
 from flask_migrate import Migrate
 import json
+import os
 
 user_narratives = {}  # Global dictionary to store per-user narratives
 app = Flask(__name__)
@@ -129,40 +130,31 @@ def login():
             session['current_pos'] = 0
             assigned_indices = json.loads(user.assigned_indices) if user.assigned_indices else []
 
-            user_responses = UserResponse.query.filter_by(user_id=user.id).all()
-            
-            if current_user.isAdmin:
+            if user.isAdmin:
                 # Admins skip assignment logic and go directly to admin page
                 return redirect(url_for('show_db_contents'))
-            
-            if not assigned_indices:
-                if user_responses:
-                    # User had assignments before and completed them all
-                    return render_template('completed.html')
-                else:
-                    # User never had assignments at all
-                    return render_template('noAssignments.html')
             else:
-                # Non-admin logic
                 if assigned_indices:
                     session['current_index'] = assigned_indices[0]
 
                     # Fallback if no custom narratives loaded for this user
                     if user.id not in user_narratives:
-                        if assigned_indices:
-                            user_narratives[user.id] = {
-                                'all_narrative_1': all_narrative_1,
-                                'all_narrative_2': all_narrative_2,
-                                'overlap': overlap,
-                                'conflict': conflict,
-                                'unique1': unique1,
-                                'unique2': unique2
-                            }
+                        user_narratives[user.id] = {
+                            'all_narrative_1': all_narrative_1,
+                            'all_narrative_2': all_narrative_2,
+                            'overlap': overlap,
+                            'conflict': conflict,
+                            'unique1': unique1,
+                            'unique2': unique2
+                        }
 
-                    return redirect(url_for('index'))
+                # Redirect to index regardless of assignments; index will handle rendering
+                return redirect(url_for('index'))
 
+    # After form validation fails
     flash('Invalid username or password.', 'danger')
     return render_template('login.html', form=form)
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -614,6 +606,46 @@ def delete_specific_response():
     flash('Response deleted successfully.', 'success')
     return redirect(url_for('show_db_contents'))
 
+@app.route('/upload_pdf', methods=['GET', 'POST'])
+@login_required
+def upload_pdf():
+    if not current_user.isAdmin:
+        flash('Access denied', 'danger')
+        return redirect(url_for('show_db_contents'))
+    
+    if request.method == 'POST':
+        if 'pdf_file' not in request.files:
+            flash('No PDF file selected', 'danger')
+            return redirect(url_for('upload_pdf'))
+        
+        pdf_file = request.files['pdf_file']
+        if pdf_file.filename == '':
+            flash('No selected file', 'danger')
+            return redirect(url_for('upload_pdf'))
+        
+        if not pdf_file.filename.lower().endswith('.pdf'):
+            flash('Invalid file type. Please upload a PDF file', 'danger')
+            return redirect(url_for('upload_pdf'))
+        
+        pdf_path = 'static/guidelines.pdf'
+        pdf_file.save(pdf_path)
+
+        flash('PDF uploaded successfully. Users can now view the latest guidelines.', 'success')
+        return redirect(url_for('show_db_contents'))
+    
+    return redirect(url_for('show_db_contents'))
+
+
+@app.route('/view_guidelines')
+@login_required
+def view_guidelines():
+    pdf_path = 'static/guidelines.pdf'
+    if not os.path.exists(pdf_path):
+        flash('No guidelines PDF available. Please contact the administrator.', 'warning')
+        return redirect(url_for('index'))
+    
+    return send_file(pdf_path, as_attachment=True, download_name='Guidelines.pdf')
+
 @app.route('/index')
 @login_required
 def index():
@@ -656,7 +688,6 @@ def index():
     if current_pos >= len(assigned_indices):
         flash('You have completed all assigned narratives.', 'index')
         return render_template('completed.html')
-
 
     current_index = assigned_indices[current_pos]
     session['current_index'] = current_index

@@ -32,7 +32,11 @@
         <h1>Admin Dashboard</h1>
       </div>
       <div class="header-bar-buttons">
-        <a href="{{url_for('logout')}}" class="btn pdfButton">Import PDF</a>
+        <form action="{{ url_for('upload_pdf') }}" method="post" enctype="multipart/form-data" style="display:inline;">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"> 
+          <input type="file" name="pdf_file" id="pdfFile" style="display:none;" accept=".pdf" onchange="this.form.submit()">
+          <button type="button" class="btn pdfButton" onclick="document.getElementById('pdfFile').click()">Import PDF</button>
+        </form>
         <a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
       </div>
 
