@@ -224,8 +224,9 @@ def show_db_contents():
 
                 num_clauses = len(clauses)
                 num_responses = len([resp for resp in user_responses if resp.clause_type == category])
-                if num_clauses > 0 and num_responses >= num_clauses:
+                if num_clauses == 0 or num_responses >= num_clauses:
                     categories_completed += 1
+
 
             progress = int((categories_completed / total_categories) * 100)
             index_progress[index] = progress
@@ -652,6 +653,7 @@ def index():
     if current_user.isAdmin:
         return redirect(url_for('show_db_contents'))
 
+    # Fetch or initialize assigned_indices for this user
     if 'assigned_indices' not in session:
         if current_user.assigned_indices:
             session['assigned_indices'] = json.loads(current_user.assigned_indices)
@@ -660,12 +662,14 @@ def index():
 
     assigned_indices = session['assigned_indices']
     if not assigned_indices:
+        # If there are no narratives assigned at all, check if any responses exist
         user_responses = UserResponse.query.filter_by(user_id=current_user.id).all()
         if user_responses:
             return render_template('completed.html')
         else:
             return render_template('noAssignments.html')
 
+    # Ensure the user's custom narratives are loaded if they exist
     if current_user.id not in user_narratives:
         user_narratives[current_user.id] = {
             'all_narrative_1': all_narrative_1,
@@ -692,19 +696,23 @@ def index():
     current_index = assigned_indices[current_pos]
     session['current_index'] = current_index
 
+    # Clause display toggles
     show_overlap = session.get('show_overlap', False)
     show_conflict = session.get('show_conflict', False)
     show_unique1 = session.get('show_unique1', False)
     show_unique2 = session.get('show_unique2', False)
 
+    # Raw text for the two reviews
     narrative1 = all_narrative_1_local[current_index]
     narrative2 = all_narrative_2_local[current_index]
 
+    # Parse stored clause data
     overlap_raw = ast.literal_eval(overlap_local[current_index])
     conflict_raw = ast.literal_eval(conflict_local[current_index])
     unique1_raw = ast.literal_eval(unique1_local[current_index])
     unique2_raw = ast.literal_eval(unique2_local[current_index])
 
+    # Prepare clause batches
     overlap_batch = [
         {
             'sentence_1': clean_text(item['sentence_1']),
@@ -745,6 +753,7 @@ def index():
         for i, item in enumerate(unique2_raw)
     ]
 
+    # Retrieve any saved responses for this user/narrative
     responses = UserResponse.query.filter_by(
         user_id=current_user.id,
         narrative_index=current_index
@@ -754,6 +763,7 @@ def index():
     for resp in responses:
         responses_by_category[resp.clause_type].append(resp)
 
+    # Build category dictionaries
     categories = {
         'overlap': overlap_batch,
         'conflict': conflict_batch,
@@ -761,15 +771,18 @@ def index():
         'unique2': unique2_batch
     }
 
+    # Check completion status in each category
     category_missing = {}
     categories_completed = 0
     total_categories = 4
+
     for cat_name, clauses_list in categories.items():
         total_clauses = len(clauses_list)
         answered_clauses = len(responses_by_category.get(cat_name, []))
         missing_clauses_count = total_clauses - answered_clauses
 
-        if missing_clauses_count == 0 and total_clauses > 0:
+        # If there are zero clauses OR all clauses are answered, count as complete
+        if total_clauses == 0 or missing_clauses_count == 0:
             categories_completed += 1
             category_missing[cat_name] = []
         else:
@@ -802,6 +815,7 @@ def index():
 @app.route('/next')
 @login_required
 def next_narrative():
+    # Retrieve this user's assigned indices or all if admin
     if current_user.isAdmin:
         assigned_indices = list(range(len(all_narrative_1)))
     else:
@@ -817,6 +831,7 @@ def next_narrative():
     current_pos = session.get('current_pos', 0)
     current_index = assigned_indices[current_pos]
 
+    # Pull in user-specific or global narrative data
     if current_user.id in user_narratives and len(user_narratives[current_user.id]['all_narrative_1']) > 0:
         overlap_local = user_narratives[current_user.id]['overlap']
         conflict_local = user_narratives[current_user.id]['conflict']
@@ -828,12 +843,14 @@ def next_narrative():
         unique1_local = unique1
         unique2_local = unique2
 
+    # If not admin, check that all categories are complete before moving on
     if not current_user.isAdmin:
         required_categories = ['overlap', 'conflict', 'unique1', 'unique2']
         user_responses = UserResponse.query.filter_by(
             user_id=current_user.id,
             narrative_index=current_index
         ).all()
+
         responses_by_category = defaultdict(list)
         for resp in user_responses:
             responses_by_category[resp.clause_type].append(resp)
@@ -851,7 +868,9 @@ def next_narrative():
 
             num_clauses = len(clauses)
             answered_clauses = len(responses_by_category.get(category, []))
-            if answered_clauses < num_clauses:
+
+            # CHANGED: zero clauses is automatically "done"
+            if not (num_clauses == 0 or answered_clauses >= num_clauses):
                 all_completed = False
                 break
 
@@ -859,6 +878,7 @@ def next_narrative():
             flash('Please complete all required responses before proceeding.', 'index')
             return redirect(url_for('index'))
 
+    # If we made it here, move to the next narrative
     current_pos += 1
     if current_pos >= len(assigned_indices):
         flash('You have completed all assigned narratives.', 'index')
@@ -866,7 +886,7 @@ def next_narrative():
     else:
         session['current_pos'] = current_pos
         session['current_index'] = assigned_indices[current_pos]
-        # Reset clause toggles
+        # Reset any toggles
         session['show_overlap'] = False
         session['show_conflict'] = False
         session['show_unique1'] = False
